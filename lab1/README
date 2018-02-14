@@ -1,0 +1,31 @@
+Asynchronous Messaging Lab
+
+This lab presents three communication examples with progressively more complex technology 
+solutions - socket, netty, and JMS.
+
+Using the async. lab develop an understanding of:
+   1. Message construction and delivery
+   2. Latency
+   3. Message pressure (weak scaling effects0
+
+
+Goals:
+
+   1. Understand the client-server organization
+      a. Establish a connection
+      b. Message composition - header and payload
+      c. socket buffering (chunking at the IP level)
+
+   2. Async. communication
+      a. How non-blocking messaging sequences (workflow) operate
+      b. Round-trip validation/verification
+
+   3. Measure and compare
+      a. Cold vs Hot systems
+      b. What is the performance of socket communication?
+      c. Weak scaling 
+      d. Comparison with JMS solution. How to normalize data/results?
+
+   4. Chunking
+      a. Stream a large data set
+      b. Affects of chunk size on performance

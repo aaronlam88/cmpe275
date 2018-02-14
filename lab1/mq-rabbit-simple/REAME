@@ -1,0 +1,52 @@
+A project to help you understand encapsulation of resources and become accustom to configuring packages.
+ 
+  1) Remember not everything is an RPM 
+  2) Timing - how do you time the results of this example? 
+     a) Consistent representation? Variance?
+     b) Compare to the other lab examples?
+  3) Weak scaling?
+  4) There maybe some updating that needs to occur as the example is a bit dusty
+  5) Have fun!
+
+ 
+
+This project's goals are:
+---------------------------------
+ 
+ 1) Install RabbitMQ and its dependencies
+    a) http://www.rabbitmq.com/configure.html
+ 2) Configure a runtime environment
+ 3) Using Apache Ant
+ 4) Strategic thinking and planing for single process vs. multi-process design practices.
+
+
+Installing (item 1):
+---------------------------------
+
+make install TARGET_DIR=[INSTALL_DIR]/server SBIN_DIR=[INSTALL_DIR]/sbin MAN_DIR=[INSTALL_DIR]/man DOC_INSTALL_DIR=[INSTALL_DIR]/doc
+
+
+Testing (from the command line):
+---------------------------------
+
+1) Start with HelloTest
+2) Next try the pub-sub example
+3) Then when you got things working try MQPostFactoryTest
+4) Lastly, try connecting to a another computer 
+
+
+Organization (items 1 & 2):
+---------------------------------
+
+1) Think about how you organize your project and third party libraries.
+2) Runtime - how do you organize your environment to promote stability?
+3) How does your configuration support new version of libraries and binaries?
+4) How does your runtime support a production and a development on the same node?
+
+
+Patterns (item 4):
+---------------------------------
+
+1) Apply the circuit breaker pattern to the MQ example
+
+

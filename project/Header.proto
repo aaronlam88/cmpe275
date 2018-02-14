@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+message Header {
+    string from_ip = 1; // the ip of sender
+    string to_ip = 2; // the ip of receiver
+    string token = 3; // a token to authenticate a session
+
+    // limit how many hop can this message take
+    // please default to a number < 255
+    int32 max_hop = 4; 
+
+    // the package can be one of the following
+    oneof package {
+        CMD = 0; // command: from sender to receiver, command receiver to do an action
+        MSG = 1; // message: from sender to receiver, receiver may or may not react to the message
+        DTA = 2; // data: the act
+    }
+}

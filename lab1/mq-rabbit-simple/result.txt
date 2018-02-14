@@ -1,0 +1,1 @@
+Testsuite: gash.mq.rabbit.HelloTest

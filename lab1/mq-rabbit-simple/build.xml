@@ -1,0 +1,124 @@
+<?xml version="1.0"?>
+<project name="example rabbitmq project" basedir="." default="build">
+
+	<target name="init">
+		<property name="src.dir" location="${basedir}/src" />
+		<property name="test.dir" location="${basedir}/test" />
+		<property name="build.dir" location="${basedir}/classes" />
+		<property name="config.dir" location="${basedir}/resources" />
+
+                <!-- Note 'current' is a link to the version of rabbit I'm using, 
+                     this allows me to switch versions w/o changing this build.xml -->
+
+                <!-- where rabbitmq client jars are located -->
+		<property name="rabbitmq.dir" location="/usr/local/sbin/" />
+
+		<path id="project.classpath">
+			<pathelement location="${build.dir}" />
+			<fileset dir="${basedir}/lib">
+				<include name="*.jar" />
+			</fileset>
+			<fileset dir="${rabbitmq.dir}">
+				<include name="**/*.jar" />
+			</fileset>
+		</path>
+	</target>
+
+	<target name="clean" depends="init" >
+		<delete dir="${build.dir}" />
+	</target>
+
+	<target name="build" depends="clean">
+		<mkdir dir="${build.dir}" />
+
+		<javac destdir="${build.dir}" debug="true" deprecation="false" optimize="false" failonerror="true" includeantruntime="false">
+			<src path="${src.dir}" />
+			<classpath refid="project.classpath" />
+		</javac>
+	</target>
+
+	<target name="build.test" depends="build">
+		<javac destdir="${build.dir}" debug="true" deprecation="false" optimize="false" failonerror="true" includeantruntime="false">
+			<src path="${test.dir}" />
+			<classpath refid="project.classpath" />
+		</javac>
+	</target>
+
+        <!-- note these tests do not force a rebuild of the project -->
+	<target name="test.pub" depends="init">
+		<junit printsummary='yes' fork='yes'>
+			<classpath refid="project.classpath" />
+			<test name="gash.mq.rabbit.MQueuePublisherTest" methods="testPublish" haltonfailure="no" outfile="result">
+				<formatter type="plain" />
+			</test>
+		</junit>
+	</target>
+
+        <!-- note these tests do not force a rebuild of the project -->
+	<target name="test.pub.topic" depends="init">
+		<junit printsummary='yes' fork='yes'>
+			<classpath refid="project.classpath" />
+			<test name="gash.mq.rabbit.MQueuePublisherTest" methods="testPublishUsingBinding" haltonfailure="no" outfile="result">
+				<formatter type="plain" />
+			</test>
+		</junit>
+	</target>
+
+        <!-- note these tests do not force a rebuild of the project -->
+	<target name="test.post" depends="init">
+		<junit printsummary='yes' fork='yes'>
+			<classpath refid="project.classpath" />
+			<test name="gash.mq.rabbit.MQPostFactoryTest" methods="testPost" haltonfailure="no" outfile="result">
+				<formatter type="plain" />
+			</test>
+		</junit>
+	</target>
+
+        <!-- note these tests do not force a rebuild of the project -->
+	<target name="test.retrieve" depends="init">
+		<junit printsummary='yes' fork='yes'>
+			<classpath refid="project.classpath" />
+			<test name="gash.mq.rabbit.MQPostFactoryTest" methods="testRetrieve" haltonfailure="no" outfile="result">
+				<formatter type="plain" />
+			</test>
+		</junit>
+	</target>
+
+        <!-- note these tests do not force a rebuild of the project -->
+	<target name="test.hello.retrieve" depends="init">
+		<junit printsummary='yes' fork='no'>
+			<classpath refid="project.classpath" />
+			<test name="gash.mq.rabbit.HelloTest" methods="testRecvHello" haltonfailure="no" outfile="result">
+				<formatter type="plain" />
+			</test>
+		</junit>
+	</target>
+
+	<target name="run.hello" depends="init">
+		<java fork="yes" classname="app.HelloDemo">
+			<classpath refid="project.classpath" />
+		</java>
+	</target>
+
+	<target name="demo.subscribe.info" depends="build">
+		<java fork="yes" classname="gash.mq.rabbit.demo.SubscribeApp">
+			<classpath refid="project.classpath" />
+                        <arg value="#.info"/>
+		</java>
+	</target>
+
+	<target name="demo.subscribe.error" depends="build">
+		<java fork="yes" classname="gash.mq.rabbit.demo.SubscribeApp">
+			<classpath refid="project.classpath" />
+                        <arg value="#.error"/>
+		</java>
+	</target>
+
+	<target name="demo.subscribe.all" depends="build">
+		<java fork="yes" classname="gash.mq.rabbit.demo.SubscribeApp">
+			<classpath refid="project.classpath" />
+                        <arg value="#"/>
+		</java>
+	</target>
+
+</project>
