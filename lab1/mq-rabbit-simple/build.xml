@@ -24,6 +24,21 @@
 		</path>
 	</target>
 
+	<target name="startServer">
+		<exec executable="rabbitmq-server" />
+	</target>
+	<target name="testSend" depends="build">
+		<java fork="yes" classname="app.Send">
+			<classpath refid="project.classpath" />
+		</java>
+	</target>
+
+	<target name="testRecv" depends="build">
+		<java fork="yes" classname="app.Recv">
+			<classpath refid="project.classpath" />
+		</java>
+	</target>
+
 	<target name="clean" depends="init" >
 		<delete dir="${build.dir}" />
 	</target>
