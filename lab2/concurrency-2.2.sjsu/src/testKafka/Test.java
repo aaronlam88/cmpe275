@@ -30,8 +30,11 @@ public class Test {
 		hub.addNode(prod);
 		
 		hub.privateMessage(prod.getNodeId(), Producer.queueId, "from prod: test1");
+		Thread.sleep((long)(Math.random() * 1000));
 		hub.privateMessage(prod.getNodeId(), Producer.queueId, "from prod: test2");
+		Thread.sleep((long)(Math.random() * 1000));
 		hub.privateMessage(prod.getNodeId(), Producer.queueId, "from prod: test3");
+		Thread.sleep((long)(Math.random() * 1000));
 		hub.privateMessage(prod.getNodeId(), Producer.queueId, "from prod: test4");
 	}
 
