@@ -1,0 +1,47 @@
+Lab: binding
+
+This lab introduces the concept of building wrappers around compiled or code written in 
+another programming language.
+
+The concept of binding is not new; many of you have used (seen it) java, python, fortran, and other 
+languages to call code fragments. The popularity of web services is built on the same premise. Web 
+services is a binding using http as the protocol / binding language. 
+
+Where other courses may have focused on services, this lab focuses on in-process binding. This is 
+largely done to leaverage the performance of a compiled asset in a higher-level language (e.g., 
+python or java).
+
+
+Instructions:
+A. build and install SWIG
+B. run tests
+C. create Java representations (one is provided, pi) and compare the results
+
+Questions:
+A. Under what situations would you use this technology(ies)?
+    i. What are the limitations?
+    ii. Are there alternative approaches and how do they compare?
+
+
+
+
+Build and install pcre and swig from the uploaded files.
+
+Notes:
+1. substitute '*' for correct version [file]
+2. I used xcode to build and install swig as I ran into an issue with gcc-6.1
+
+Install example:
+0. mkdir /usr/local/swig
+1. mkdir swig-dev
+2. copy contents of lab to swig-dev. (e.g., cp swig* pcre* swig-dev/.)
+3. cd swig-dev
+4. build and install pcre and swig. For example:
+   a. untar swig*
+   b. cp build-*.sh swig-*/
+   c. cd swig-*
+   d. untar ../pcre-*   
+   e. cp build-pcre.sh pcre-*
+   f. run script to build and install
+   g. cd ..
+   h. run and install swig

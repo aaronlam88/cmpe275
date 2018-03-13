@@ -1,0 +1,58 @@
+Results of the scatter test with different algorithms
+
+1) Random
+
+Randomly choose a receiver.
+
+Queue      Number in Q   Total messages processed
+  0) Q:    0 (max   67), Total:   89
+  1) Q:    0 (max   92), Total:   93
+  2) Q:    0 (max   93), Total:   94
+  3) Q:    0 (max   74), Total:   75
+  4) Q:    0 (max  117), Total:  118
+  5) Q:    0 (max   84), Total:   85
+  6) Q:    0 (max  112), Total:  113
+  7) Q:    0 (max  119), Total:  120
+  8) Q:    0 (max  112), Total:  113
+  9) Q:    0 (max   99), Total:  100
+
+
+
+2) Round Robin
+
+Sequentially choose the next receiver.
+
+Queue      Number in Q   Total messages processed
+  0) Q:    0 (max   98), Total:  100
+  1) Q:    0 (max   98), Total:  100
+  2) Q:    0 (max   98), Total:  100
+  3) Q:    0 (max   98), Total:  100
+  4) Q:    0 (max   98), Total:  100
+  5) Q:    0 (max   98), Total:  100
+  6) Q:    0 (max   98), Total:  100
+  7) Q:    0 (max   98), Total:  100
+  8) Q:    0 (max   98), Total:  100
+  9) Q:    0 (max   98), Total:  100
+
+
+
+3) Lowest Rank
+
+Choose the receiver (Rank) that has the lowest enqueued messages.
+
+Queue      Number in Q   Total messages processed
+  0) Q:  311 (max  454), Total:  145
+  1) Q:    0 (max    3), Total:    5
+  2) Q:  394 (max  537), Total:  145
+  3) Q:    0 (max    0), Total:    0
+  4) Q:    0 (max    0), Total:    0
+  5) Q:    0 (max    0), Total:    0
+  6) Q:    0 (max    0), Total:    0
+  7) Q:    0 (max    0), Total:    0
+  8) Q:    0 (max    0), Total:    0
+  9) Q:    0 (max    0), Total:    0
+
+** These results are not what one would have expected. Why? **
+
+
+

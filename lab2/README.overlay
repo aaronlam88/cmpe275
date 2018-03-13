@@ -1,0 +1,11 @@
+This lab is to help in understanding modeling of network organization. The use of
+a simulation allows us to build, test, and debug complex relationships w/o
+creating multiple processes.
+
+This lab was inspired by a discussion last week on Kafka message handling. So,
+we will try to create the message handling across multiple brokers.
+
+Goal:
+
+For this lab, we will create a Kafka message network for handling large volumes
+of messages. Secondary goals can include failure simulation w/ leader election.

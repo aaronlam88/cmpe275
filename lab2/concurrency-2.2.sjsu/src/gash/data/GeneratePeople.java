@@ -8,7 +8,7 @@ import java.util.Random;
 
 /**
  * Generate a list of names - we use this to create random key values. Note
- * since the length of these 'names' are fairly short (< 64) the generated hash
+ * since the length of these 'names' are fairly short (<64) the generated hash
  * is small. Testing for larger keys can be provided with more appended names.s
  * 
  * @author not attributable

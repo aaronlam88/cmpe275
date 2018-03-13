@@ -37,7 +37,7 @@ public class HubTest {
 		hub.addNode(f);
 		
 		// messages from outside of the spokes
-		hub.privateMessage(c.getNodeId(), 1, "There can only be one");
+		hub.privateMessage(3, 1, "There can only be one");
 		Thread.sleep(100);
 		hub.privateMessage(4, 3, "hello three");
 		Thread.sleep(200);
