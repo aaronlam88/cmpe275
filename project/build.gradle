@@ -29,6 +29,7 @@ dependencies {
   compile "io.grpc:grpc-netty:${grpcVersion}"
   compile "io.grpc:grpc-protobuf:${grpcVersion}"
   compile "io.grpc:grpc-stub:${grpcVersion}"
+  compile "mysql:mysql-connector-java:5.1.46"
 
   testCompile "io.grpc:grpc-testing:${grpcVersion}"
   testCompile "junit:junit:4.12"
