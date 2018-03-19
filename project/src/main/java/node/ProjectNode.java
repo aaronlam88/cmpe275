@@ -20,26 +20,26 @@ import worker.ProjectWorker;
 public class ProjectNode {
 	// server: a ProjectServer to receive messages
 	ProjectServer server;
-	
+
 	// workerPoll: using a workerPoll avoid create and destroy Worker when work is needed or done
 	LinkedList<ProjectWorker> workerPoll;
 
 	// incomingQueue: when server get a message, it will put the message in the incomingQueue
 	LinkedBlockingQueue<Message> incomingQueue;
-	
+
 	// outgoingQueue: when worker is done processing a message and need to send out a respond
 	// 		it will put the message in the outgoingQueue
 	LinkedBlockingQueue<Message> outgoingQueue;
-	
+
 	// rountingTable: Node will keep track of all the outgoing edges using routingTable
 	//		when a message need to be sent to a specific client, use this routingTable to get the client
 	//		if you want to respond to a incoming connection after you done:
 	//			create an id, and create a client, and put them in the routingTable
 	//			make sure that worker will send respond to the correct id, after the work is done
 	HashMap <Integer, ProjectClient> routingTable;
-	
+
 	public static void main(String[] args) {
-		
+
 	}
 
 }

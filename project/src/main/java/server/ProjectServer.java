@@ -17,14 +17,18 @@
 package server;
 
 import java.io.IOException;
+import java.util.LinkedList;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.logging.Logger;
 
+import com.google.protobuf.Message;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.project.PingReply;
 import io.grpc.project.PingRequest;
 import io.grpc.project.SendPingGrpc;
 import io.grpc.stub.StreamObserver;
+
 
 /**
  * Server that manages startup/shutdown of a {@code Greeter} server.
@@ -33,6 +37,11 @@ public class ProjectServer {
 	private static final Logger logger = Logger.getLogger(ProjectServer.class.getName());
 
 	private Server server;
+	private LinkedBlockingQueue<Message> incomingQueue;
+
+    public ProjectServer(LinkedBlockingQueue<Message> incomingQueue) {
+        this.incomingQueue = incomingQueue;
+    }
 
 	private void start() throws IOException {
 		/* The port on which the server should run */
@@ -75,6 +84,15 @@ public class ProjectServer {
 //		server.start();
 //		server.blockUntilShutdown();
 //	}
+
+    private void moveToQueue(Message message) {
+        try {
+               incomingQueue.put(message);
+           } catch (Exception e) {
+               e.printStackTrace();
+           }
+    }
+
 
 	static class SendPingImpl extends SendPingGrpc.SendPingImplBase {
 
