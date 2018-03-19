@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "io.grpc.project";
+option java_outer_classname = "Project";
+option objc_class_prefix = "PROJECT";
+
+package project;
+
+// The greeting service definition.
+service SendPing {
+  rpc Ping (PingRequest) returns (PingReply) {}
+}
+
+// The request message containing the user's name.
+message PingRequest {
+  string name = 1;
+}
+
+// The response message containing the greetings
+message PingReply {
+  int64 milliseconds = 1;
+}
