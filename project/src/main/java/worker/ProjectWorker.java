@@ -27,7 +27,7 @@ public class ProjectWorker {
     }
 
     public void dealWithMessage(Header message) {
-         
+
     }
 
     public void finishMessage(Header message)throws InterruptedException{
