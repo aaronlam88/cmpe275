@@ -1,91 +1,93 @@
-/*
- * Copyright 2015, gRPC Authors All rights reserved.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package client;
 
+import com.google.gson.Gson;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.StatusRuntimeException;
+
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.net.InetAddress;
 
-import io.grpc.project.PingReply;
-import io.grpc.project.PingRequest;
-import io.grpc.project.SendPingGrpc;
+import io.grpc.comm.*;
 
-/**
- * A simple client that requests a greeting from the {@link HelloWorldServer}.
- */
 public class ProjectClient {
-	private static final Logger logger = Logger.getLogger(ProjectClient.class.getName());
+    private static final Logger logger = Logger.getLogger(ProjectClient.class.getName());
 
-	private final ManagedChannel channel;
-	private final SendPingGrpc.SendPingBlockingStub blockingStub;
+    private final ManagedChannel channel;
+    private final CommunicationServiceGrpc.CommunicationServiceBlockingStub blockingStub;
 
-	/** Construct client connecting to HelloWorld server at {@code host:port}. */
-	public ProjectClient(String host, int port) {
-		this(ManagedChannelBuilder.forAddress(host, port)
-				// Channels are secure by default (via SSL/TLS). For the example we disable TLS
-				// to avoid
-				// needing certificates.
-				.usePlaintext(true).build());
-	}
+    private String myIP;
+    private String toIP;
 
-	/**
-	 * Construct client for accessing RouteGuide server using the existing channel.
-	 */
-	ProjectClient(ManagedChannel channel) {
-		this.channel = channel;
-		blockingStub = SendPingGrpc.newBlockingStub(channel);
-	}
+    /** Construct client connecting to ProjectServer at {@code host:port}. */
+    public ProjectClient(String host, int port) {
+        this(ManagedChannelBuilder.forAddress(host, port).usePlaintext(true).build());
+        this.toIP = host;
+        try {
+            this.myIP = InetAddress.getLocalHost().getHostAddress();
+        } catch (Exception e) {
+            logger.info(e.getMessage());
+        }
+    }
 
-	public void shutdown() throws InterruptedException {
-		channel.shutdown().awaitTermination(5, TimeUnit.SECONDS);
-	}
+    /**
+     * Construct client for accessing server using the existing channel.
+     */
+    ProjectClient(ManagedChannel channel) {
+        this.channel = channel;
+        blockingStub = CommunicationServiceGrpc.newBlockingStub(channel);
+    }
 
-	/** Say hello to server. */
-	public void ping(String name) {
-		logger.info("Will try to greet " + name + " ...");
-		PingRequest request = PingRequest.newBuilder().setName(name).build();
-		PingReply response;
-		try {
-			response = blockingStub.ping(request);
-		} catch (StatusRuntimeException e) {
-			logger.log(Level.WARNING, "RPC failed: {0}", e.getStatus());
-			return;
-		}
-		logger.info("Greeting: " + response.getMilliseconds());
-	}
+    public void shutdown() throws InterruptedException {
+        channel.shutdown().awaitTermination(5, TimeUnit.SECONDS);
+    }
 
-	/**
-	 * Greet server. If provided, the first element of {@code args} is the name to
-	 * use in the greeting.
-	 */
-//	public static void main(String[] args) throws Exception {
-//		ProjectClient client = new ProjectClient("localhost", 50051);
-//		try {
-//			/* Access a service running on the local machine on port 50051 */
-//			String user = "world";
-//			if (args.length > 0) {
-//				user = args[0]; /* Use the arg as the name to greet if provided */
-//			}
-//			client.ping(user);
-//		} finally {
-//			client.shutdown();
-//		}
-//	}
+    /** pring server. */
+    public void ping() {
+        logger.info("Trying to ping" + this.toIP + " ...");
+        // Build PingRequest
+        PingRequest pingRequest =PingRequest.newBuilder().setMsg("ping from " + myIP).build();
+
+        // Build Request
+        Request.Builder requestBuilder = Request.newBuilder();
+        requestBuilder.setFromSender(this.myIP);
+        requestBuilder.setToReceiver(this.toIP);
+        requestBuilder.setPing(pingRequest);
+        Request request = requestBuilder.build();
+
+        Response response;
+        try {
+            response = blockingStub.ping(request);
+        } catch (StatusRuntimeException e) {
+            logger.log(Level.WARNING, "RPC failed: {0}", e.getStatus());
+            return;
+        }
+        logger.info(response.getCode().toString());
+    }
+
+    public static void main(String[] args) throws Exception {
+        String host = "localhost"; // default host;
+        int port = 8080; // default port
+
+        // if host or port are supplied, use them
+        switch (args.length) {
+            case 2:
+                port = Integer.parseInt(args[1]);
+                // fall over to case 1
+                // no break intentionally
+            case 1:
+                host = args[0];
+                break;
+        }
+
+        ProjectClient client = new ProjectClient(host, port);
+        try {
+            /* Access a service running on the local machine on port 50051 */
+            client.ping();
+        } finally {
+            client.shutdown();
+        }
+    }
 }

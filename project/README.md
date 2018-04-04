@@ -1,21 +1,11 @@
-cmpe275 project
-==============================================
+You will need to install protobuf and gradle to compile this project
+You can import this project as gradle project to IntelliJ or Eclipse
 
+To install dependencies and compile Java code, run
+./gradlew installDist
 
-To build project, run in this directory:
+To run server
+./build/install/project/bin/project-server
 
-```
-$ ./gradlew installDist
-```
-
-To run node: [not yet working]
-
-```
-$ ./build/install/project/bin/projectNode
-```
-
-That's it!
-
-Please refer to gRPC Java's [README](../README.md) and
-[tutorial](https://grpc.io/docs/tutorials/basic/java.html) for more
-information.
+To run client
+./build/install/project/bin/project-client

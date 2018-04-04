@@ -1,106 +1,144 @@
-/*
- * Copyright 2015, gRPC Authors All rights reserved.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package server;
 
+import java.io.FileReader;
 import java.io.IOException;
-import java.util.LinkedList;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.logging.Logger;
 
-import com.google.protobuf.Message;
+import com.google.gson.Gson;
+import config.ServerConfig;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
-import io.grpc.project.PingReply;
-import io.grpc.project.PingRequest;
-import io.grpc.project.SendPingGrpc;
 import io.grpc.stub.StreamObserver;
 
+import io.grpc.comm.*;
 
-/**
- * Server that manages startup/shutdown of a {@code Greeter} server.
- */
+// ProjectServer is similar to Node
 public class ProjectServer {
-	private static final Logger logger = Logger.getLogger(ProjectServer.class.getName());
+    private static final Logger logger = Logger.getLogger(ProjectServer.class.getName());
 
-	private Server server;
-	private LinkedBlockingQueue<Message> incomingQueue;
+    private int server_id; // server id is same as node id
+    private int external_port; // port use for team2team communication
+    private int internal_port; // port use for node2node communication
 
-    public ProjectServer(LinkedBlockingQueue<Message> incomingQueue) {
-        this.incomingQueue = incomingQueue;
+    private Server server;
+
+    public ProjectServer(int server_id, int external_port, int internal_port) {
+        this.server_id = server_id;
+        this.external_port = external_port;
+        this.internal_port = internal_port;
     }
 
-	private void start() throws IOException {
-		/* The port on which the server should run */
-		int port = 50051;
-		server = ServerBuilder.forPort(port).addService(new SendPingImpl()).build().start();
-		logger.info("Server started, listening on " + port);
-		Runtime.getRuntime().addShutdownHook(new Thread() {
-			@Override
-			public void run() {
-				// Use stderr here since the logger may have been reset by its JVM shutdown
-				// hook.
-				System.err.println("*** shutting down gRPC server since JVM is shutting down");
-				ProjectServer.this.stop();
-				System.err.println("*** server shut down");
-			}
-		});
-	}
-
-	private void stop() {
-		if (server != null) {
-			server.shutdown();
-		}
-	}
-
-	/**
-	 * Await termination on the main thread since the grpc library uses daemon
-	 * threads.
-	 */
-	private void blockUntilShutdown() throws InterruptedException {
-		if (server != null) {
-			server.awaitTermination();
-		}
-	}
-
-	/**
-	 * Main launches the server from the command line.
-	 */
-//	public static void main(String[] args) throws IOException, InterruptedException {
-//		final ProjectServer server = new ProjectServer();
-//		server.start();
-//		server.blockUntilShutdown();
-//	}
-
-    private void moveToQueue(Message message) {
+    public ProjectServer(String config_file_path) {
+        Gson gson = new Gson();
         try {
-               incomingQueue.put(message);
-           } catch (Exception e) {
-               e.printStackTrace();
-           }
+            ServerConfig config = gson.fromJson(new FileReader(config_file_path), ServerConfig.class);
+            this.server_id = config.server_id;
+            this.internal_port = config.internal_port;
+            this.external_port = config.external_port;
+        } catch (Exception e) {
+            logger.info(e.getMessage());
+            System.exit(-1);
+        }
     }
 
+    // default
+    public ProjectServer() {
+        this.server_id = 1;
+        this.external_port = 8080;
+        this.internal_port = 8081;
+    }
 
-	static class SendPingImpl extends SendPingGrpc.SendPingImplBase {
+    private void start() throws IOException {
+        /* The port on which the server should run */
+        server = ServerBuilder.forPort(this.external_port).addService(new PingImpl()).build().start();
+        logger.info("Server started, listening on " + this.external_port);
+        Runtime.getRuntime().addShutdownHook(new Thread() {
+            @Override
+            public void run() {
+                // Use stderr here since the logger may have been reset by its JVM shutdown
+                // hook.
+                System.err.println("*** shutting down gRPC server since JVM is shutting down");
+                ProjectServer.this.stop();
+                System.err.println("*** server shut down");
+            }
+        });
+    }
 
-		@Override
-		public void ping (PingRequest req, StreamObserver<PingReply> responseObserver) {
-			PingReply reply = PingReply.newBuilder().setMilliseconds(System.currentTimeMillis()).build();
-			responseObserver.onNext(reply);
-			responseObserver.onCompleted();
-		}
-	}
+    private void stop() {
+        if (server != null) {
+            server.shutdown();
+        }
+    }
+
+    /**
+     * Await termination on the main thread since the grpc library uses daemon
+     * threads.
+     */
+    private void blockUntilShutdown() throws InterruptedException {
+        if (server != null) {
+            server.awaitTermination();
+        }
+    }
+
+    /**
+     * Main launches the server from the command line.
+     */
+    public static void main(String[] args) throws IOException, InterruptedException {
+        // default value
+        int server_id = 1;
+        int external_port = 8080;
+        int internal_port = 8081;
+        String config_file_path = null;
+
+        switch (args.length) {
+            case 3:
+                internal_port = Integer.parseInt(args[2]);
+                // no break intentionally
+            case 2:
+                external_port = Integer.parseInt(args[1]);
+                // no break intentionally
+            case 1:
+                try {
+                    server_id = Integer.parseInt(args[0]);
+                } catch (Exception e) {
+                    config_file_path = args[0];
+                }
+            case 0:
+                // no break intentionally
+                break;
+            default:
+                logger.info("use [server_id | config_file_path [external_port [internal_port] ] ]");
+                System.exit(-1);
+        }
+
+        ProjectServer server;
+        if (config_file_path == null) {
+            server  = new ProjectServer(server_id, external_port, internal_port);
+        } else {
+            server = new ProjectServer(config_file_path);
+        }
+
+        server.start();
+        server.blockUntilShutdown();
+    }
+
+    static class PingImpl extends CommunicationServiceGrpc.CommunicationServiceImplBase {
+        @Override
+        public void ping (Request request, StreamObserver<Response> responseObserver) {
+            logger.info("Get ping from " + request.getFromSender());
+
+            // create a Response Builder, use this builder to build a Response
+            Response response =
+                    Response.newBuilder()
+                            .setCode(UploadStatusCode.Ok)
+                            .setMsg(String.valueOf(System.currentTimeMillis()))
+                            .build();
+
+            responseObserver.onNext(response);
+            responseObserver.onCompleted();
+
+            // TODO: handle error
+            // responseObserver.onError(); // we will ignore error for now
+        }
+    }
 }

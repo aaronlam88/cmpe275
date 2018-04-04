@@ -1,0 +1,11 @@
+// This proto use for election
+
+syntax = "proto3";
+
+// The following option is for Java program
+// To use this proto in you Java class, do 'import io.grpc.comm.*;'
+option java_multiple_files = true;
+option java_package = "io.grpc.election";
+option java_outer_classname = "Election";
+option objc_class_prefix = "ELECTION";
+
