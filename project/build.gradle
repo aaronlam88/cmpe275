@@ -33,10 +33,13 @@ dependencies {
     compile "io.grpc:grpc-protobuf:${grpcVersion}"
     compile "io.grpc:grpc-stub:${grpcVersion}"
     compile 'com.google.code.gson:gson:2.8.2'
+    compile 'mysql:mysql-connector-java:5.1.46'
 
     testCompile "io.grpc:grpc-testing:${grpcVersion}"
     testCompile "junit:junit:4.12"
     testCompile "org.mockito:mockito-core:1.9.5"
+
+    runtime 'mysql:mysql-connector-java:5.1.46'
 }
 
 protobuf {
