@@ -9,3 +9,15 @@ To run server
 
 To run client
 ./build/install/project/bin/project-client
+
+## proto/
+comm.proto is used for team2team communication
+
+election.proto is used for leader election (node2node)
+
+internal.proto is used for node2node communication
+
+## resources/
+db_config.json where to get config to access database
+
+server_config. where to get config for server (node)
