@@ -41,8 +41,7 @@ class DatabaseConnection {
      *
      * @param path_to_config_json: path to config.json file
      * @return java.sql.Connection
-     * @exception FileNotFoundException or SQLException
-     *
+     * @throws FileNotFoundException or SQLException
      * @author aaronlam
      * @version 0.0.1
      * @since 2018-03-26

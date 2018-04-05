@@ -1,16 +1,18 @@
 package server;
 
-import java.io.FileReader;
-import java.io.IOException;
-import java.util.logging.Logger;
-
 import com.google.gson.Gson;
 import config.ServerConfig;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
+import io.grpc.comm.CommunicationServiceGrpc;
+import io.grpc.comm.Request;
+import io.grpc.comm.Response;
+import io.grpc.comm.UploadStatusCode;
 import io.grpc.stub.StreamObserver;
 
-import io.grpc.comm.*;
+import java.io.FileReader;
+import java.io.IOException;
+import java.util.logging.Logger;
 
 // ProjectServer is similar to Node
 public class ProjectServer {
@@ -48,38 +50,6 @@ public class ProjectServer {
         this.internal_port = 8081;
     }
 
-    private void start() throws IOException {
-        /* The port on which the server should run */
-        server = ServerBuilder.forPort(this.external_port).addService(new PingImpl()).build().start();
-        logger.info("Server started, listening on " + this.external_port);
-        Runtime.getRuntime().addShutdownHook(new Thread() {
-            @Override
-            public void run() {
-                // Use stderr here since the logger may have been reset by its JVM shutdown
-                // hook.
-                System.err.println("*** shutting down gRPC server since JVM is shutting down");
-                ProjectServer.this.stop();
-                System.err.println("*** server shut down");
-            }
-        });
-    }
-
-    private void stop() {
-        if (server != null) {
-            server.shutdown();
-        }
-    }
-
-    /**
-     * Await termination on the main thread since the grpc library uses daemon
-     * threads.
-     */
-    private void blockUntilShutdown() throws InterruptedException {
-        if (server != null) {
-            server.awaitTermination();
-        }
-    }
-
     /**
      * Main launches the server from the command line.
      */
@@ -113,7 +83,7 @@ public class ProjectServer {
 
         ProjectServer server;
         if (config_file_path == null) {
-            server  = new ProjectServer(server_id, external_port, internal_port);
+            server = new ProjectServer(server_id, external_port, internal_port);
         } else {
             server = new ProjectServer(config_file_path);
         }
@@ -122,9 +92,40 @@ public class ProjectServer {
         server.blockUntilShutdown();
     }
 
+    private void start() throws IOException {
+        /* The port on which the server should run */
+        server = ServerBuilder.forPort(this.external_port).addService(new PingImpl()).build().start();
+        logger.info("Server started, listening on " + this.external_port);
+        Runtime.getRuntime().addShutdownHook(new Thread() {
+            @Override
+            public void run() {
+                // Use stderr here since the logger may have been reset by its JVM shutdown hook.
+                System.err.println("*** shutting down gRPC server since JVM is shutting down");
+                ProjectServer.this.stop();
+                System.err.println("*** server shut down");
+            }
+        });
+    }
+
+    private void stop() {
+        if (server != null) {
+            server.shutdown();
+        }
+    }
+
+    /**
+     * Await termination on the main thread since the grpc library uses daemon
+     * threads.
+     */
+    private void blockUntilShutdown() throws InterruptedException {
+        if (server != null) {
+            server.awaitTermination();
+        }
+    }
+
     static class PingImpl extends CommunicationServiceGrpc.CommunicationServiceImplBase {
         @Override
-        public void ping (Request request, StreamObserver<Response> responseObserver) {
+        public void ping(Request request, StreamObserver<Response> responseObserver) {
             logger.info("Get ping from " + request.getFromSender());
 
             // create a Response Builder, use this builder to build a Response
