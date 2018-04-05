@@ -75,7 +75,7 @@ public class ProjectClient {
      * pring server.
      */
     public void ping() {
-        logger.info("Trying to ping" + this.toIP + " ...");
+        logger.info("Trying to ping " + this.toIP + " ...");
         // Build PingRequest
         PingRequest pingRequest = PingRequest.newBuilder().setMsg("ping from " + myIP).build();
 
