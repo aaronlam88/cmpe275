@@ -1,23 +1,21 @@
 package server;
 
-import java.io.FileReader;
-import java.io.IOException;
-import java.util.LinkedList;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.logging.Logger;
-
 import com.google.gson.Gson;
 import com.google.protobuf.ByteString;
 import config.ServerConfig;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.Status;
+import io.grpc.comm.*;
 import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
 
-import io.grpc.comm.*;
-import io.grpc.stub.StreamObservers;
+import java.io.FileReader;
+import java.io.IOException;
+import java.util.LinkedList;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.logging.Logger;
 
 // ProjectServer is similar to Node
 public class ProjectServer {
@@ -233,7 +231,7 @@ public class ProjectServer {
 
             // example of fragment
             LinkedList<String> list = new LinkedList<>();
-            for (int i  = 0; i < numberOfFragment; ++i) {
+            for (int i = 0; i < numberOfFragment; ++i) {
                 list.add("fragment number " + i);
             }
 

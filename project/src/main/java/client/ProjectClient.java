@@ -1,6 +1,5 @@
 package client;
 
-import com.google.protobuf.ByteString;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.StatusRuntimeException;
@@ -184,34 +183,5 @@ public class ProjectClient {
         } finally {
             client.shutdown();
         }
-    }
-
-    public void shutdown() throws InterruptedException {
-        channel.shutdown().awaitTermination(5, TimeUnit.SECONDS);
-    }
-
-    /**
-     * pring server.
-     */
-    public void ping() {
-        logger.info("Trying to ping " + this.toIP + " ...");
-        // Build PingRequest
-        PingRequest pingRequest = PingRequest.newBuilder().setMsg("ping from " + myIP).build();
-
-        // Build Request
-        Request.Builder requestBuilder = Request.newBuilder();
-        requestBuilder.setFromSender(this.myIP);
-        requestBuilder.setToReceiver(this.toIP);
-        requestBuilder.setPing(pingRequest);
-        Request request = requestBuilder.build();
-
-        Response response;
-        try {
-            response = blockingStub.ping(request);
-        } catch (StatusRuntimeException e) {
-            logger.log(Level.WARNING, "RPC failed: {0}", e.getStatus());
-            return;
-        }
-        logger.info(response.getCode().toString());
     }
 }
