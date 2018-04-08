@@ -9,3 +9,22 @@ option java_package = "io.grpc.election";
 option java_outer_classname = "Election";
 option objc_class_prefix = "ELECTION";
 
+message Election {
+    string fromSender = 1;
+    string toReceiver = 2;
+
+    Status status = 3;
+    Type type = 4;
+}
+
+enum Type {
+    Heartbeat = 0;
+    VoteRequest = 1; // request receiver to vote for sender
+    VoteRespont = 2; // reponst vote for sender from receiver
+}
+
+enum Status {
+    Leader = 0;
+    Follower = 1;
+    Cadidate = 2;
+}
