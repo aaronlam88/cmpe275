@@ -1,18 +1,17 @@
 package server;
 
-import javax.xml.soap.Node;
-
 public class ElectionManager {
+    //TODO implement Election algo here
 }
 
 abstract class State {
     public abstract boolean isLeader();
 
-    public abstract void sendHeartBeat();
+    public abstract boolean shouldSendHeartbeat();
 
-    public abstract void requestVote();
+    public abstract boolean shouldRequestVote();
 
-    public abstract void voteFor();
+    public abstract boolean canVote();
 
     public abstract void moveToNextState();
 }
@@ -26,6 +25,8 @@ class NodeState {
 
     State currentState;
     boolean voted;
+    int timeout;
+    int time;
 
     private NodeState() {
     }
@@ -43,8 +44,29 @@ class NodeState {
         followerState = new FollowerState(this);
         cadidateState = new CadidateState(this);
 
-        this.currentState = followerState;
-        this.voted = false;
+        currentState = followerState;
+        voted = false;
+        timeout = (int) (Math.random() * 300) + 200; // random 200 - 500 ms timeout
+    }
+
+    public State getCurrentState() {
+        return currentState;
+    }
+
+    public void setCurrentState (State state) {
+        currentState = state;
+    }
+
+    public State getLeaderState() {
+        return leaderState;
+    }
+
+    public State getFollowerState() {
+        return followerState;
+    }
+
+    public State getCadidateState() {
+        return cadidateState;
     }
 }
 
@@ -55,25 +77,33 @@ class LeaderState extends State {
         this.nodeState = nodeState;
     }
 
+    @Override
     public boolean isLeader() {
         return true;
     }
 
-    public void sendHeartBeat() {
-
+    @Override
+    public boolean shouldSendHeartbeat() {
+        return true;
     }
 
-    public void requestVote() {
-
+    @Override
+    public boolean shouldRequestVote() {
+        return false;
     }
 
-    public void voteFor() {
-
+    @Override
+    public boolean canVote() {
+        return false;
     }
 
+    @Override
     public void moveToNextState() {
-
+        // can move
+        return;
     }
+
+
 }
 
 class FollowerState extends State {
@@ -83,24 +113,33 @@ class FollowerState extends State {
         this.nodeState = nodeState;
     }
 
+    @Override
     public boolean isLeader() {
         return false;
     }
 
-    public void sendHeartBeat() {
-
+    @Override
+    public boolean shouldSendHeartbeat() {
+        return false;
     }
 
-    public void requestVote() {
-
+    @Override
+    public boolean shouldRequestVote() {
+        return false;
     }
 
-    public void voteFor() {
-
+    @Override
+    public boolean canVote() {
+        if (!nodeState.voted) {
+            return true;
+        }
+        return false;
     }
+
 
     public void moveToNextState() {
-
+        //TODO after timeout, no heartbeat from leader
+        nodeState.setCurrentState(nodeState.getCadidateState());
     }
 }
 
@@ -111,23 +150,31 @@ class CadidateState extends State {
         this.nodeState = nodeState;
     }
 
+
+    @Override
     public boolean isLeader() {
-        return  false;
+        return false;
     }
 
-    public void sendHeartBeat() {
-
+    @Override
+    public boolean shouldSendHeartbeat() {
+        return false;
     }
 
-    public void requestVote() {
-
+    @Override
+    public boolean shouldRequestVote() {
+        return true;
     }
 
-    public void voteFor() {
-
+    @Override
+    public boolean canVote() {
+        return false;
     }
 
     public void moveToNextState() {
-
+        //TODO if enough vote, become leader
+        nodeState.setCurrentState(nodeState.getLeaderState());
+        // TODO if not enough vote, wait for timeout to see if there is a new Leader
+        // TODO if after timeout, and no Leader, call for election again
     }
 }
