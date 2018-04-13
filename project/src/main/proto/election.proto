@@ -13,7 +13,7 @@ message Election {
     string fromSender = 1;
     string toReceiver = 2;
 
-    Status status = 3;
+    NodeStatus status = 3;
     Type type = 4;
 }
 
@@ -23,7 +23,7 @@ enum Type {
     VoteRespont = 2; // reponst vote for sender from receiver
 }
 
-enum Status {
+enum NodeStatus {
     Leader = 0;
     Follower = 1;
     Cadidate = 2;
