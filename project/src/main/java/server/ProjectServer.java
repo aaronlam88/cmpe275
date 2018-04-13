@@ -7,7 +7,6 @@ import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.Status;
 import io.grpc.comm.*;
-import io.grpc.election.NodeStatus;
 import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
 
@@ -36,7 +35,6 @@ public class ProjectServer {
         this.server_id = server_id;
         this.external_port = external_port;
         this.internal_port = internal_port;
-        this.nodeStatus = NodeStatus.Follower;
     }
 
     public ProjectServer(String config_file_path) {
@@ -46,23 +44,10 @@ public class ProjectServer {
             this.server_id = config.server_id;
             this.internal_port = config.internal_port;
             this.external_port = config.external_port;
-            this.nodeStatus = NodeStatus.Follower;
         } catch (Exception e) {
             logger.info(e.getMessage());
             System.exit(-1);
         }
-    }
-
-    public int getId() {
-        return server_id;
-    }
-
-    public NodeStatus getStatus() {
-        return this.nodeStatus;
-    }
-
-    public void setStatus(NodeStatus nodeStatus) {
-        this.nodeStatus = nodeStatus;
     }
 
     // default
