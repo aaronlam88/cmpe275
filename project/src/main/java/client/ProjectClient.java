@@ -86,8 +86,71 @@ public class ProjectClient {
      * PutHandler
      */
     public void putHandler() {
+        logger.info("putHandler " + this.toIP + " ...");
+
+        PutRequest putRequest = PutRequest.newBuilder().setDatFragment(DatFragment.newBuilder().build()).build();
+
+        Request request = Request
+                .newBuilder()
+                .setFromSender(this.myIP)
+                .setToReceiver(this.toIP)
+                .setPutRequest(putRequest)
+                .build();
+
+        try {
+            nonBlockingStub.getHandler(request, new ClientResponseObserver<Request, Response>() {
+                ClientCallStreamObserver<Request> requestStream;
+
+                @Override
+                public void onNext(Response value) {
+                    logger.info(value.getDatFragment().getData().toStringUtf8());
+                    requestStream.request(1);
+                }
+
+                @Override
+                public void onError(Throwable t) {
+                    t.printStackTrace();
+                    done.countDown();
+                }
+
+                @Override
+                public void onCompleted() {
+                    logger.info("All Done for put handler");
+                    done.countDown();
+                }
+
+                @Override
+                public void beforeStart(ClientCallStreamObserver<Request> requestStream) {
+                    this.requestStream = requestStream;
+                    requestStream.disableAutoInboundFlowControl();
+
+                    requestStream.setOnReadyHandler(new Runnable() {
+                        @Override
+                        public void run() {
+                            // Start generating values from where we left off on a non-gRPC thread.
+                            // TODO: build request
+//                            Request request = Request.newBuilder().build();
+                            // Send request
+                            while (requestStream.isReady()) {
+                                requestStream.onNext(request);
+                                requestStream.onCompleted();
+                            }
+                        }
+                    });
+                }
+            });
+            done.await();
+        } catch (StatusRuntimeException e) {
+            logger.log(Level.WARNING, "RPC failed: {0}", e.getStatus());
+            return;
+        } catch (InterruptedException e) {
+            logger.log(Level.WARNING, "RPC failed: {0}", e.getMessage());
+            return;
+        }
+        logger.info("getHandler DONE");
 
     }
+
 
     /**
      * GetHandler
@@ -125,7 +188,7 @@ public class ProjectClient {
 
                 @Override
                 public void onCompleted() {
-                    logger.info("All Done");
+                    logger.info("All Done for get handler");
                     done.countDown();
                 }
 
@@ -180,6 +243,7 @@ public class ProjectClient {
             /* Access a service running on the local machine on port */
             client.ping();
             client.getHandler();
+            client.putHandler();
         } finally {
             client.shutdown();
         }
