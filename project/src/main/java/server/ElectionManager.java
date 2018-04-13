@@ -2,6 +2,11 @@ package server;
 
 public class ElectionManager {
     //TODO implement Election algo here
+    public NodeState nodeState;
+
+    public ElectionManager() {
+        this.nodeState = NodeState.getNodeState();
+    }
 }
 
 abstract class State {

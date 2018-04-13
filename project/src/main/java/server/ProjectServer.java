@@ -28,7 +28,8 @@ public class ProjectServer {
     LinkedBlockingQueue<Request> incomming_queue; // use for buffer incoming Request
     LinkedBlockingQueue<Response> outgoing_queue; // use for buffer outgoing Response
 
-    private Server server;
+    private Server externalServer;
+    private Server internalServer;
 
     public ProjectServer(int server_id, int external_port, int internal_port) {
         this.server_id = server_id;
@@ -57,9 +58,15 @@ public class ProjectServer {
     }
 
     private void start() throws IOException {
-        /* The port on which the server should run */
-        server = ServerBuilder.forPort(this.external_port).addService(new CommunicationServiceImpl()).build().start();
-        logger.info("Server started, listening on " + this.external_port);
+        logger.info("Start Server [" + server_id + "]");
+        // create externalServer
+        externalServer = ServerBuilder.forPort(this.external_port).addService(new CommunicationServiceImpl()).build().start();
+        logger.info("External Server started, listening on " + this.external_port);
+        // create internalServer
+        internalServer = ServerBuilder.forPort(this.internal_port).addService(new CommunicationServiceImpl()).build().start();
+        logger.info("Internal Server started, listening on " + this.internal_port);
+
+        // handle shutdown
         Runtime.getRuntime().addShutdownHook(new Thread() {
             @Override
             public void run() {
@@ -70,11 +77,15 @@ public class ProjectServer {
                 System.err.println("*** server shut down");
             }
         });
+
     }
 
     private void stop() {
-        if (server != null) {
-            server.shutdown();
+        if (externalServer != null) {
+            externalServer.shutdown();
+        }
+        if (internalServer != null) {
+            internalServer.shutdown();
         }
     }
 
@@ -83,8 +94,11 @@ public class ProjectServer {
      * threads.
      */
     private void blockUntilShutdown() throws InterruptedException {
-        if (server != null) {
-            server.awaitTermination();
+        if (externalServer != null) {
+            externalServer.awaitTermination();
+        }
+        if (internalServer != null) {
+            internalServer.awaitTermination();
         }
     }
 
@@ -125,6 +139,9 @@ public class ProjectServer {
         } else {
             server = new ProjectServer(config_file_path);
         }
+
+        ElectionManager electionManager = new ElectionManager();
+        TaskManager taskManager = new TaskManager(server.incomming_queue, server.outgoing_queue);
 
         server.start();
         server.blockUntilShutdown();
