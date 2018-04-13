@@ -6,8 +6,8 @@ syntax = "proto3";
 // To use this proto in you Java class, do 'import io.grpc.comm.*;'
 option java_multiple_files = true;
 option java_package = "io.grpc.election";
-option java_outer_classname = "Election";
-option objc_class_prefix = "ELECTION";
+option java_outer_classname = "Elect";
+option objc_class_prefix = "ELECT";
 
 message Election {
     string fromSender = 1;

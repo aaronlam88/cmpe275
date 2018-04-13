@@ -7,8 +7,8 @@ syntax = "proto3";
 // To use this proto in you Java class, do 'import io.grpc.comm.*;'
 option java_multiple_files = true;
 option java_package = "io.grpc.internal";
-option java_outer_classname = "Internal";
-option objc_class_prefix = "INTERNAL";
+option java_outer_classname = "Inter";
+option objc_class_prefix = "INTER";
 
 message Internal {
     string fromSender = 1;
