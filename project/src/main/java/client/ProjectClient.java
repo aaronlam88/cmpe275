@@ -1,13 +1,19 @@
 package client;
 
+import com.google.protobuf.ByteString;
+import com.google.type.Date;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.StatusRuntimeException;
 import io.grpc.comm.*;
 import io.grpc.stub.ClientCallStreamObserver;
 import io.grpc.stub.ClientResponseObserver;
+import io.grpc.stub.StreamObserver;
 
+import javax.xml.crypto.Data;
 import java.net.InetAddress;
+import java.time.Instant;
+import java.util.LinkedList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
@@ -86,8 +92,99 @@ public class ProjectClient {
      * PutHandler
      */
     public void putHandler() {
+        logger.info("putHandler " + this.toIP + " ...");
+        StreamObserver<Response> responseObserver = new StreamObserver<Response>() {
 
+            @Override
+            public void onNext(Response value) {
+                logger.info(value.getDatFragment().getData().toStringUtf8());
+            }
+
+            @Override
+            public void onError(Throwable t) {
+                t.printStackTrace();
+            }
+
+            @Override
+            public void onCompleted() {
+                logger.info("All Done for put handler");
+            }
+        };
+
+        StreamObserver<Request> requestObserver = nonBlockingStub.putHandler(responseObserver);
+
+        try {
+            // create uuid for a file, fragment that file, count number of fragments
+            String uuid = "uuid";
+            int numberOfFragment = 3;
+            int mediaType = 1;
+
+            MetaData metaData = MetaData
+                    .newBuilder()
+                    .setUuid(uuid)
+                    .setNumOfFragment(numberOfFragment)
+                    .setMediaType(mediaType)
+                    .build();
+
+            // example of fragment
+            LinkedList<String> list = new LinkedList<>();
+            for (int i = 0; i < numberOfFragment; ++i) {
+                list.add("fragment number " + i);
+            }
+
+            PutRequest putRequest = PutRequest
+                    .newBuilder()
+                    .setMetaData(metaData)
+                    .build();
+
+            Request request = Request
+                    .newBuilder()
+                    .setFromSender(this.myIP)
+                    .setToReceiver(this.toIP)
+                    .setPutRequest(putRequest)
+                    .build();
+
+            // send first meta data
+            logger.info("sending meta data ...");
+            requestObserver.onNext(request);
+
+            // send all fragments
+            for (String str : list) {
+                DatFragment datFragment = DatFragment
+                        .newBuilder()
+                        .setTimestampUtc(Instant.now().toString())
+                        .setData(ByteString.copyFromUtf8(str))
+                        .build();
+
+                request = Request
+                        .newBuilder()
+                        .setPutRequest(
+                                PutRequest
+                                        .newBuilder()
+                                        .setMetaData(metaData)
+                                        .setDatFragment(datFragment)
+                                        .build()
+                        )
+                        .build();
+
+                // send fragment
+                logger.info("sending data " + request.getPutRequest().getDatFragment().toString());
+                requestObserver.onNext(request);
+            }
+
+            // send completed
+            requestObserver.onCompleted();
+        } catch (StatusRuntimeException e) {
+            logger.log(Level.WARNING, "RPC failed: {0}", e.getStatus());
+            return;
+        } catch (RuntimeException e) {
+            requestObserver.onError(e);
+            logger.log(Level.WARNING, "RPC failed: {0}", e.getMessage());
+            return;
+        }
+        logger.info("getHandler DONE");
     }
+
 
     /**
      * GetHandler
@@ -125,7 +222,7 @@ public class ProjectClient {
 
                 @Override
                 public void onCompleted() {
-                    logger.info("All Done");
+                    logger.info("All Done for get handler");
                     done.countDown();
                 }
 
@@ -180,6 +277,7 @@ public class ProjectClient {
             /* Access a service running on the local machine on port */
             client.ping();
             client.getHandler();
+            client.putHandler();
         } finally {
             client.shutdown();
         }
