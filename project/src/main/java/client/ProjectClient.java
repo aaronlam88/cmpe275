@@ -1,13 +1,19 @@
 package client;
 
+import com.google.protobuf.ByteString;
+import com.google.type.Date;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.StatusRuntimeException;
 import io.grpc.comm.*;
 import io.grpc.stub.ClientCallStreamObserver;
 import io.grpc.stub.ClientResponseObserver;
+import io.grpc.stub.StreamObserver;
 
+import javax.xml.crypto.Data;
 import java.net.InetAddress;
+import java.time.Instant;
+import java.util.LinkedList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
@@ -87,68 +93,96 @@ public class ProjectClient {
      */
     public void putHandler() {
         logger.info("putHandler " + this.toIP + " ...");
+        StreamObserver<Response> responseObserver = new StreamObserver<Response>() {
 
-        PutRequest putRequest = PutRequest.newBuilder().setDatFragment(DatFragment.newBuilder().build()).build();
+            @Override
+            public void onNext(Response value) {
+                logger.info(value.getDatFragment().getData().toStringUtf8());
+            }
 
-        Request request = Request
-                .newBuilder()
-                .setFromSender(this.myIP)
-                .setToReceiver(this.toIP)
-                .setPutRequest(putRequest)
-                .build();
+            @Override
+            public void onError(Throwable t) {
+                t.printStackTrace();
+            }
+
+            @Override
+            public void onCompleted() {
+                logger.info("All Done for put handler");
+            }
+        };
+
+        StreamObserver<Request> requestObserver = nonBlockingStub.putHandler(responseObserver);
 
         try {
-            nonBlockingStub.getHandler(request, new ClientResponseObserver<Request, Response>() {
-                ClientCallStreamObserver<Request> requestStream;
+            // create uuid for a file, fragment that file, count number of fragments
+            String uuid = "uuid";
+            int numberOfFragment = 3;
+            int mediaType = 1;
 
-                @Override
-                public void onNext(Response value) {
-                    logger.info(value.getDatFragment().getData().toStringUtf8());
-                    requestStream.request(1);
-                }
+            MetaData metaData = MetaData
+                    .newBuilder()
+                    .setUuid(uuid)
+                    .setNumOfFragment(numberOfFragment)
+                    .setMediaType(mediaType)
+                    .build();
 
-                @Override
-                public void onError(Throwable t) {
-                    t.printStackTrace();
-                    done.countDown();
-                }
+            // example of fragment
+            LinkedList<String> list = new LinkedList<>();
+            for (int i = 0; i < numberOfFragment; ++i) {
+                list.add("fragment number " + i);
+            }
 
-                @Override
-                public void onCompleted() {
-                    logger.info("All Done for put handler");
-                    done.countDown();
-                }
+            PutRequest putRequest = PutRequest
+                    .newBuilder()
+                    .setMetaData(metaData)
+                    .build();
 
-                @Override
-                public void beforeStart(ClientCallStreamObserver<Request> requestStream) {
-                    this.requestStream = requestStream;
-                    requestStream.disableAutoInboundFlowControl();
+            Request request = Request
+                    .newBuilder()
+                    .setFromSender(this.myIP)
+                    .setToReceiver(this.toIP)
+                    .setPutRequest(putRequest)
+                    .build();
 
-                    requestStream.setOnReadyHandler(new Runnable() {
-                        @Override
-                        public void run() {
-                            // Start generating values from where we left off on a non-gRPC thread.
-                            // TODO: build request
-//                            Request request = Request.newBuilder().build();
-                            // Send request
-                            while (requestStream.isReady()) {
-                                requestStream.onNext(request);
-                                requestStream.onCompleted();
-                            }
-                        }
-                    });
-                }
-            });
-            done.await();
+            // send first meta data
+            logger.info("sending meta data ...");
+            requestObserver.onNext(request);
+
+            // send all fragments
+            for (String str : list) {
+                DatFragment datFragment = DatFragment
+                        .newBuilder()
+                        .setTimestampUtc(Instant.now().toString())
+                        .setData(ByteString.copyFromUtf8(str))
+                        .build();
+
+                request = Request
+                        .newBuilder()
+                        .setPutRequest(
+                                PutRequest
+                                        .newBuilder()
+                                        .setMetaData(metaData)
+                                        .setDatFragment(datFragment)
+                                        .build()
+                        )
+                        .build();
+
+                // send fragment
+                logger.info("sending data " + request.getPutRequest().getDatFragment().toString());
+                requestObserver.onNext(request);
+            }
+
+            // send completed
+            requestObserver.onCompleted();
         } catch (StatusRuntimeException e) {
             logger.log(Level.WARNING, "RPC failed: {0}", e.getStatus());
             return;
-        } catch (InterruptedException e) {
+        } catch (RuntimeException e) {
+            requestObserver.onError(e);
             logger.log(Level.WARNING, "RPC failed: {0}", e.getMessage());
             return;
         }
         logger.info("getHandler DONE");
-
     }
 
 

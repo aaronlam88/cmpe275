@@ -194,7 +194,7 @@ public class ProjectServer {
                     // Process the request and send a response or an error.
                     try {
                         // TODO: Accept and enqueue the request.
-
+                        logger.info(request.getPutRequest().getDatFragment().getData().toStringUtf8());
 
                         // TODO: Do work here (maybe send a response).
 
@@ -229,9 +229,11 @@ public class ProjectServer {
 
                 @Override
                 public void onCompleted() {
+                    // Send a response to let client know
+                    responseObserver.onNext(Response.newBuilder().setCode(StatusCode.Ok).setMsg("DONE").build());
                     // Signal the end of work when the client ends the request stream.
-                    logger.info("putHandler COMPLETED");
                     responseObserver.onCompleted();
+                    logger.info("putHandler COMPLETED");
                 }
             };
         }
