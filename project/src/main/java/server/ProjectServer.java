@@ -19,9 +19,13 @@ import javax.xml.crypto.Data;
 import java.io.FileReader;
 import java.io.IOException;
 
+import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
@@ -43,6 +47,9 @@ import java.util.logging.Logger;
  */
 public class ProjectServer {
     private static final Logger logger = Logger.getLogger(ProjectServer.class.getName());
+
+    private static final int fragmentSize = 1024000; // 1,024,000 char ~= 1MB
+
 
     private int server_id; // server id is same as node id
     private int external_port; // port use for team2team communication
@@ -211,7 +218,6 @@ public class ProjectServer {
             Response response =
                     Response.newBuilder()
                             .setCode(StatusCode.Ok)
-                            .setMsg(String.valueOf(System.currentTimeMillis()))
                             .build();
 
             responseObserver.onNext(response);
@@ -293,53 +299,78 @@ public class ProjectServer {
 
         @Override
         public void getHandler(Request request, StreamObserver<Response> responseObserver) {
-            logger.info("getHandler from " + request.getFromSender());
-            // TODO: process the request and get the data
+            String from_utc = request.getGetRequest().getQueryParams().getFromUtc();
+            String to_utc = request.getGetRequest().getQueryParams().getToUtc();
 
-            // create uuid for a file, fragment that file, count number of fragments
-            String uuid = "uuid";
-            int numberOfFragment = 3;
-            int mediaType = 1;
+            ResultSet resultSet = databaseManager.selectByTimeRanch(from_utc, to_utc);
 
-            // example of fragment
-            LinkedList<String> list = new LinkedList<>();
-            for (int i = 0; i < numberOfFragment; ++i) {
-                list.add("fragment number " + i);
+            if (resultSet == null) {
+                Response response = Response
+                        .newBuilder()
+                        .setCode(StatusCode.Failed)
+                        .setMsg("NO RESULT")
+                        .build();
+                responseObserver.onNext(response);
+                responseObserver.onCompleted();
+                return;
             }
 
-            // first response is about metaData
-            Response response =
-                    Response.newBuilder()
-                            .setCode(StatusCode.Ok)
-                            .setMsg("Meta")
-                            .setMetaData(
-                                    MetaData.newBuilder()
-                                            .setUuid("uuid")
-                                            .setNumOfFragment(3)
-                                            .setMediaType(1)
-                                            .build()
-                            )
-                            .build();
-
-            // send first package
-            logger.info("sending meta data ...");
-            responseObserver.onNext(response);
+            // create uuid for a file, fragment that file, count number of fragments
+//            String uuid = "uuid";
+//            int numberOfFragment = 3;
+//            int mediaType = 1;
 
             // send all fragments
-            for (String str : list) {
-                response = Response.newBuilder()
-                        .setCode(StatusCode.Ok)
-                        .setMsg("Data")
-                        .setDatFragment(
-                                DatFragment.newBuilder()
-                                        .setData(ByteString.copyFromUtf8(str))
-                                        .build()
-                        )
-                        .build();
+            try {
+                ResultSetMetaData metadata = resultSet.getMetaData();
+                int numberOfColumns = metadata.getColumnCount();
 
-                // send fragment
-                logger.info("sending data " + response.getDatFragment().getData().toString());
-                responseObserver.onNext(response);
+                StringBuffer fragment = new StringBuffer();
+                while (resultSet.next()) {
+                    StringBuffer row = new StringBuffer();
+                    for (int i = 1; i <= numberOfColumns; ++i) {
+                        if (i == 1) {
+                            row.append(resultSet.getString(i));
+                        } else if (i == 2) {
+                            row.append(resultSet.getTimestamp(i));
+                        } else {
+                            row.append(resultSet.getDouble(i));
+                        }
+                        row.append(", ");
+                    }
+                    fragment.append(row.append("\n"));
+
+                    if (fragment.length() >= fragmentSize) {
+                        DatFragment datFragment = DatFragment
+                                .newBuilder()
+                                .setData(ByteString.copyFromUtf8(fragment.toString()))
+                                .build();
+
+                        Response response = Response
+                                .newBuilder()
+                                .setDatFragment(datFragment)
+                                .build();
+
+                        responseObserver.onNext(response);
+                        fragment = new StringBuffer();
+                    }
+                }
+                // send the last fragment
+                if (fragment.length() != 0) {
+                    DatFragment datFragment = DatFragment
+                            .newBuilder()
+                            .setData(ByteString.copyFromUtf8(fragment.toString()))
+                            .build();
+
+                    Response response = Response
+                            .newBuilder()
+                            .setDatFragment(datFragment)
+                            .build();
+
+                    responseObserver.onNext(response);
+                }
+            } catch (SQLException e) {
+                logger.log(Level.WARNING, "SQLException ", e.getMessage());
             }
             responseObserver.onCompleted();
             logger.info("getHandler DONE");

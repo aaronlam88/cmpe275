@@ -17,6 +17,7 @@ import java.time.Instant;
 import java.util.LinkedList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -83,12 +84,12 @@ public class ProjectClient {
 
         Response response;
         try {
+            long time = System.currentTimeMillis();
             response = blockingStub.ping(request);
+            logger.info("Respont: " + (System.currentTimeMillis() - time) + " ms");
         } catch (StatusRuntimeException e) {
             logger.log(Level.WARNING, "RPC failed: {0}", e.getStatus());
-            return;
         }
-        logger.info(response.getCode().toString());
     }
 
     /**
@@ -106,11 +107,13 @@ public class ProjectClient {
             @Override
             public void onError(Throwable t) {
                 t.printStackTrace();
+                done.countDown();
             }
 
             @Override
             public void onCompleted() {
-                logger.info("All Done for put handler");
+                logger.info("Completed");
+                done.countDown();
             }
         };
 
@@ -150,7 +153,7 @@ public class ProjectClient {
                             )
                             .build();
 
-                    requestObserver.onNext(request);
+                    requestObserver.onNext(request); // send data fragment to server
 
                     stringBuffer = new StringBuffer(); // clean buffer
                 }
@@ -158,22 +161,31 @@ public class ProjectClient {
             bufferedReader.close();
             fileReader.close();
 
+            if (stringBuffer.length() != 0) {
+                DatFragment datFragment = DatFragment
+                        .newBuilder()
+                        .setData(ByteString.copyFromUtf8(stringBuffer.toString()))
+                        .build();
+
+                Request request = Request
+                        .newBuilder()
+                        .setPutRequest(
+                                PutRequest
+                                        .newBuilder()
+                                        .setDatFragment(datFragment)
+                                        .build()
+                        )
+                        .build();
+
+                requestObserver.onNext(request); // send data fragment to server
+            }
+
             // send completed
             requestObserver.onCompleted();
             done.await();
-        } catch (StatusRuntimeException e) {
-            logger.log(Level.WARNING, "RPC failed: {0}", e.getStatus());
-            return;
-        } catch (RuntimeException e) {
+        } catch (Exception e) {
             requestObserver.onError(e);
             logger.log(Level.WARNING, "RPC failed: {0}", e.getMessage());
-            return;
-        } catch (FileNotFoundException e) {
-            logger.info(e.getStackTrace().toString());
-        } catch (IOException e) {
-            e.printStackTrace();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
         }
         logger.info("putHandler DONE");
     }
@@ -182,11 +194,17 @@ public class ProjectClient {
     /**
      * GetHandler
      */
-    public void getHandler() {
+    public void getHandler(String from_utc, String to_utc) {
         logger.info("getHandler " + this.toIP + " ...");
-        // TODO: Build Get Request
+        // Build Get Request
         GetRequest getRequest = GetRequest
                 .newBuilder()
+                .setQueryParams(
+                        QueryParams
+                                .newBuilder()
+                                .setFromUtc(from_utc)
+                                .setToUtc(to_utc).build()
+                )
                 .build();
 
         // Build Request
@@ -199,12 +217,17 @@ public class ProjectClient {
 
         try {
             nonBlockingStub.getHandler(request, new ClientResponseObserver<Request, Response>() {
+                final AtomicBoolean wasReady = new AtomicBoolean(false);
                 ClientCallStreamObserver<Request> requestStream;
 
                 @Override
                 public void onNext(Response value) {
                     logger.info(value.getDatFragment().getData().toStringUtf8());
-                    requestStream.request(1);
+                    if (requestStream.isReady()) {
+                        requestStream.request(1);
+                    } else {
+                        wasReady.set(false);
+                    }
                 }
 
                 @Override
@@ -228,12 +251,14 @@ public class ProjectClient {
                         @Override
                         public void run() {
                             // Start generating values from where we left off on a non-gRPC thread.
-                            // TODO: build request
-//                            Request request = Request.newBuilder().build();
                             // Send request
-                            while (requestStream.isReady()) {
-                                requestStream.onNext(request);
-                                requestStream.onCompleted();
+//                            while (requestStream.isReady()) {
+//                                requestStream.onNext(request);
+//                                requestStream.onCompleted();
+//                            }
+                            if (requestStream.isReady() && wasReady.compareAndSet(false, true)) {
+                                logger.info("getHandler READY");
+                                requestStream.request(1);
                             }
                         }
                     });
@@ -242,12 +267,53 @@ public class ProjectClient {
             done.await();
         } catch (StatusRuntimeException e) {
             logger.log(Level.WARNING, "RPC failed: {0}", e.getStatus());
-            return;
         } catch (InterruptedException e) {
             logger.log(Level.WARNING, "RPC failed: {0}", e.getMessage());
-            return;
         }
-        logger.info("getHandler DONE");
+    }
+
+    private void printMenu() {
+        System.out.println("1: ping");
+        System.out.println("2: put");
+        System.out.println("3: get");
+        System.out.println("4: exit");
+        commandHandler();
+    }
+
+    private void commandHandler() {
+        try {
+            BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+            System.out.print("> ");
+            int i = Integer.parseInt(br.readLine());
+            switch (i) {
+                case 1:
+                    ping();
+                    break;
+                case 2:
+                    System.out.print("file path: ");
+                    String filePath = br.readLine();
+                    System.out.println();
+                    putHandler(filePath);
+                    System.out.println();
+                    break;
+                case 3:
+                    System.out.print("from_utc: ");
+                    String from_utc = br.readLine();
+                    System.out.print("to_utc: ");
+                    String to_utc = br.readLine();
+                    System.out.println();
+                    getHandler(from_utc, to_utc);
+                    System.out.println();
+                    break;
+                default:
+                    System.out.println("Closing...");
+                    return;
+            }
+
+        } catch (Exception e) {
+            logger.log(Level.WARNING, e.getMessage());
+        }
+        printMenu();
     }
 
     public static void main(String[] args) throws Exception {
@@ -269,8 +335,9 @@ public class ProjectClient {
         try {
             /* Access a service running on the local machine on port */
 //            client.ping();
-//            client.getHandler();
-            client.putHandler("/Users/aaronlam/Desktop/test_data/3.mesowest.out");
+//            client.getHandler("2018-03-16 22:30:00", "2018-03-16 22:30:00");
+//            client.putHandler("/Users/aaronlam/Desktop/test_data/3.mesowest.out");
+            client.printMenu();
         } finally {
             client.shutdown();
         }

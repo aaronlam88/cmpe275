@@ -122,6 +122,8 @@ public class DatabaseManager {
             "VALUES\n" +
             "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);\n";
 
+    private  final static  String selectStmt = "SELECT * FROM cmpe275.mesowest WHERE  ? <= DATE and DATE <= ?;";
+
     // variable
     private Connection connection = null;
     private static PreparedStatement batchPreparedStmt;
@@ -236,7 +238,7 @@ public class DatabaseManager {
     }
 
     /**
-     *
+     * commit current batch
      */
     public void commitBatch() {
         try {
@@ -247,6 +249,18 @@ public class DatabaseManager {
         } catch (SQLException e) {
             logger.log(Level.WARNING, "SQLException ", e.getMessage());
         }
+    }
+
+    public ResultSet selectByTimeRanch(String from_utc, String to_utc) {
+        try {
+            PreparedStatement preparedStatement = connection.prepareStatement(selectStmt);
+            preparedStatement.setString(1, from_utc);
+            preparedStatement.setString(2, to_utc);
+            return preparedStatement.executeQuery();
+        } catch (SQLException e) {
+            logger.log(Level.WARNING, "SQLException ", e.getMessage());
+        }
+        return null;
     }
 
     /**
