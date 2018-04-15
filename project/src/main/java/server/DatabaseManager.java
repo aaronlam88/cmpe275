@@ -98,23 +98,23 @@ public class DatabaseManager {
     // const variable
     private final static int batchSize = 10000;
 
-    private final static String createTable = "CREATE TABLE `mesowest` (\n"+
-            "  `STN` text,\n"+
-            "  `DATE` datetime DEFAULT NULL,\n"+
-            "  `MNET` double DEFAULT NULL,\n"+
-            "  `SLAT` double DEFAULT NULL,\n"+
-            "  `SLON` double DEFAULT NULL,\n"+
-            "  `SELV` double DEFAULT NULL,\n"+
-            "  `TMPF` double DEFAULT NULL,\n"+
-            "  `SKNT` double DEFAULT NULL,\n"+
-            "  `DRCT` double DEFAULT NULL,\n"+
-            "  `GUST` double DEFAULT NULL,\n"+
-            "  `PMSL` double DEFAULT NULL,\n"+
-            "  `ALTI` double DEFAULT NULL,\n"+
-            "  `DWPF` double DEFAULT NULL,\n"+
-            "  `RELH` double DEFAULT NULL,\n"+
-            "  `WTHR` double DEFAULT NULL,\n"+
-            "  `P24I` double DEFAULT NULL\n"+
+    private final static String createTable = "CREATE TABLE `mesowest` (\n" +
+            "  `STN` text,\n" +
+            "  `DATE` datetime DEFAULT NULL,\n" +
+            "  `MNET` double DEFAULT NULL,\n" +
+            "  `SLAT` double DEFAULT NULL,\n" +
+            "  `SLON` double DEFAULT NULL,\n" +
+            "  `SELV` double DEFAULT NULL,\n" +
+            "  `TMPF` double DEFAULT NULL,\n" +
+            "  `SKNT` double DEFAULT NULL,\n" +
+            "  `DRCT` double DEFAULT NULL,\n" +
+            "  `GUST` double DEFAULT NULL,\n" +
+            "  `PMSL` double DEFAULT NULL,\n" +
+            "  `ALTI` double DEFAULT NULL,\n" +
+            "  `DWPF` double DEFAULT NULL,\n" +
+            "  `RELH` double DEFAULT NULL,\n" +
+            "  `WTHR` double DEFAULT NULL,\n" +
+            "  `P24I` double DEFAULT NULL\n" +
             ") ENGINE=InnoDB DEFAULT CHARSET=utf8;\n";
 
     private final static String insertStmt = "INSERT INTO `cmpe275`.`mesowest`\n" +
@@ -152,25 +152,28 @@ public class DatabaseManager {
      * insert a single row to database
      * break the String row into arrays of values and
      * will call insertSingleRow(String[] values) to do insert
+     *
      * @param row
      */
-    public void inserSingletRow (String row) {
+    public void inserSingletRow(String row) {
         String[] values = row.trim().split("\\s+");
         insertSingleRow(values);
     }
 
     /**
      * String[] values should have 16 field and
+     *
      * @param values
      */
-    public void insertSingleRow (String[] values) {
-        if(values.length != 16) {
+    public void insertSingleRow(String[] values) {
+        if (values.length != 16) {
             logger.info("Incorret format for insert query");
+            return;
         }
         try {
             PreparedStatement ps = connection.prepareStatement(insertStmt);
             DateFormat format = new SimpleDateFormat("yyyyMMdd/HHmm");
-            for(int i = 0, j = 1; i < values.length; ++i, ++j) {
+            for (int i = 0, j = 1; i < values.length; ++i, ++j) {
                 if (i == 1) {
                     ps.setTimestamp(j, new java.sql.Timestamp(format.parse(values[i]).getTime()));
                 } else if (i == 0) {
@@ -182,9 +185,9 @@ public class DatabaseManager {
             ps.executeUpdate();
             connection.commit();
         } catch (SQLException e) {
-            logger.info("SQLException " + e.getStackTrace().toString());
+            logger.log(Level.WARNING, "SQLException ", e.getMessage());
         } catch (ParseException e) {
-            logger.info("ParseException" + e.getStackTrace().toString());
+            logger.log(Level.WARNING, "ParseException ", e.getMessage());
         }
     }
 
@@ -194,7 +197,6 @@ public class DatabaseManager {
     public void addToBatch(String rows) {
         String[] rowArray = rows.split("\n");
         for (String row : rowArray) {
-            logger.info(row);
             String[] values = row.trim().split("\\s+");
             addToBatch(values);
         }
@@ -204,14 +206,15 @@ public class DatabaseManager {
      * add statement to batch
      */
     public void addToBatch(String[] values) {
-        if(values.length != 16) {
+        if (values.length != 16) {
             logger.info("Incorret format for insert query");
+            return;
         }
 
         try {
             batchPreparedStmt.clearParameters();
             DateFormat format = new SimpleDateFormat("yyyyMMdd/HHmm");
-            for(int i = 0, j = 1; i < values.length; ++i, ++j) {
+            for (int i = 0, j = 1; i < values.length; ++i, ++j) {
                 if (i == 1) {
                     batchPreparedStmt.setTimestamp(j, new java.sql.Timestamp(format.parse(values[i]).getTime()));
                 } else if (i == 0) {
@@ -226,9 +229,9 @@ public class DatabaseManager {
                 this.commitBatch();
             }
         } catch (SQLException e) {
-            logger.info("SQLException " + e.getStackTrace().toString());
+            logger.log(Level.WARNING, "SQLException ", e.getMessage());
         } catch (ParseException e) {
-            logger.info("ParseException" + e.getStackTrace().toString());
+            logger.log(Level.WARNING, "ParseException ", e.getMessage());
         }
     }
 
@@ -242,7 +245,7 @@ public class DatabaseManager {
             connection.commit();
             batchPreparedStmt.clearParameters();
         } catch (SQLException e) {
-            logger.info("commitBatch " + e.getStackTrace().toString());
+            logger.log(Level.WARNING, "SQLException ", e.getMessage());
         }
     }
 

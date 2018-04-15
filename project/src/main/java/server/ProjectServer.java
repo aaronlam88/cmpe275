@@ -245,11 +245,8 @@ public class ProjectServer {
                 public void onNext(Request request) {
                     // Process the request and send a response or an error.
                     try {
-                        // TODO: Accept and enqueue the request.
-//                        logger.info(request.getPutRequest().getDatFragment().getData().toStringUtf8());
+                        // insert string or strings to database
                         databaseManager.addToBatch(request.getPutRequest().getDatFragment().getData().toStringUtf8());
-                        // TODO: Do work here (maybe send a response).
-
 
                         // Check the provided ServerCallStreamObserver to see if it is still ready to accept more messages.
                         if (serverCallStreamObserver.isReady()) {
@@ -281,9 +278,12 @@ public class ProjectServer {
 
                 @Override
                 public void onCompleted() {
+                    // need to commit the current batch to database before finish
                     databaseManager.commitBatch();
+
                     // Send a response to let client know
                     responseObserver.onNext(Response.newBuilder().setCode(StatusCode.Ok).setMsg("DONE").build());
+
                     // Signal the end of work when the client ends the request stream.
                     responseObserver.onCompleted();
                     logger.info("putHandler COMPLETED");

@@ -11,10 +11,7 @@ import io.grpc.stub.ClientResponseObserver;
 import io.grpc.stub.StreamObserver;
 
 import javax.xml.crypto.Data;
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileReader;
-import java.io.IOException;
+import java.io.*;
 import java.net.InetAddress;
 import java.time.Instant;
 import java.util.LinkedList;
@@ -25,6 +22,8 @@ import java.util.logging.Logger;
 
 public class ProjectClient {
     private static final Logger logger = Logger.getLogger(ProjectClient.class.getName());
+
+    private static final int fragmentSize = 1024000; // 1,024,000 char ~= 1MB
 
     private final ManagedChannel channel;
     private final CommunicationServiceGrpc.CommunicationServiceBlockingStub blockingStub;
@@ -119,86 +118,49 @@ public class ProjectClient {
 
         try {
             // create uuid for a file, fragment that file, count number of fragments
-            String uuid = "uuid";
-            int numberOfFragment = 1;
-            int mediaType = 1;
+//            String uuid = "uuid";
+//            int numberOfFragment = 1;
+//            int mediaType = 1;
 
-            MetaData metaData = MetaData
-                    .newBuilder()
-                    .setUuid(uuid)
-                    .setNumOfFragment(numberOfFragment)
-                    .setMediaType(mediaType)
-                    .build();
+            // build proto request
 
-            // example of fragment
-            LinkedList<String> list = new LinkedList<>();
-            try {
-                File file = new File(filePath);
-                FileReader fileReader = new FileReader(file);
-                BufferedReader bufferedReader = new BufferedReader(fileReader);
-                String line;
-                while ((line = bufferedReader.readLine()) != null) {
-                    list.add(line);
+            // read file line by line
+            File file = new File(filePath);
+            FileReader fileReader = new FileReader(file);
+            BufferedReader bufferedReader = new BufferedReader(fileReader);
+            StringBuffer stringBuffer = new StringBuffer();
+            String line;
+            while ((line = bufferedReader.readLine()) != null) {
+                // need to add back new line to ensure that lines are end with \n
+                stringBuffer.append(line + "\n");
+                // when size is >= fragment size, send it to server
+                if (stringBuffer.length() >= fragmentSize) {
+                    DatFragment datFragment = DatFragment
+                            .newBuilder()
+                            .setData(ByteString.copyFromUtf8(stringBuffer.toString()))
+                            .build();
+
+                    Request request = Request
+                            .newBuilder()
+                            .setPutRequest(
+                                    PutRequest
+                                            .newBuilder()
+                                            .setDatFragment(datFragment)
+                                            .build()
+                            )
+                            .build();
+
+                    requestObserver.onNext(request);
+
+                    stringBuffer = new StringBuffer(); // clean buffer
                 }
-                fileReader.close();
-            }catch (IOException e) {
-                e.printStackTrace();
             }
-            //LinkedList<String> list = new LinkedList<>();
-//            list.add("BULLF  20180316/2230      8.00    37.52  -110.73  1128.00 -9999.00     3.73 -9999.00     8.19 -9999.00 -9999.00 -9999.00 -9999.00 -9999.00 -9999.00\n" +
-//                    "    CCD  20180316/2215      8.00    40.69  -111.59  2743.00    26.27     8.82   176.10    17.01 -9999.00 -9999.00 -9999.00 -9999.00 -9999.00 -9999.00\n" +
-//                    "    CCD  20180316/2230      8.00    40.69  -111.59  2743.00    25.86     9.25   186.10    16.07 -9999.00 -9999.00 -9999.00 -9999.00 -9999.00 -9999.00\n" +
-//                    "    CLK  20180316/2215      8.00    40.68  -111.57  2529.00    32.39     9.20   157.40    16.19 -9999.00 -9999.00 -9999.00 -9999.00 -9999.00 -9999.00\n" +
-//                    "    CLK  20180316/2230      8.00    40.68  -111.57  2529.00    31.84    11.29   147.10    16.70 -9999.00 -9999.00 -9999.00 -9999.00 -9999.00 -9999.00\n" +
-//                    "    CRN  20180316/2225      8.00    38.29  -111.26  1676.00    54.16     5.30   320.90    14.67 -9999.00 -9999.00    23.26    29.81 -9999.00 -9999.00\n" +
-//                    "    CRN  20180316/2230      8.00    38.29  -111.26  1676.00    54.89     5.41   169.30    14.70 -9999.00 -9999.00    23.73    29.60 -9999.00 -9999.00\n" +
-//                    "    CRN  20180316/2235      8.00    38.29  -111.26  1676.00    53.98    11.58   127.00    14.86 -9999.00 -9999.00    23.48    30.28 -9999.00 -9999.00\n" +
-//                    "    CRN  20180316/2240      8.00    38.29  -111.26  1676.00    54.65    13.68   127.50    14.36 -9999.00 -9999.00    23.06    29.03 -9999.00 -9999.00\n" +
-//                    "    PRP  20180316/2230      8.00    41.26  -112.44  2004.00    36.63     6.17   141.20    13.07 -9999.00 -9999.00    31.99    83.10 -9999.00 -9999.00\n" +
-//                    "    SB2  20180316/2245      8.00    41.19  -111.87  2805.00    24.94     5.29   197.50     9.78 -9999.00 -9999.00 -9999.00 -9999.00 -9999.00 -9999.00");
-
-            PutRequest putRequest = PutRequest
-                    .newBuilder()
-                    .setMetaData(metaData)
-                    .build();
-
-            Request request = Request
-                    .newBuilder()
-                    .setFromSender(this.myIP)
-                    .setToReceiver(this.toIP)
-                    .setPutRequest(putRequest)
-                    .build();
-
-            // send first meta data
-            logger.info("sending meta data ...");
-            requestObserver.onNext(request);
-
-            // send all fragments
-            for (String str : list) {
-                DatFragment datFragment = DatFragment
-                        .newBuilder()
-                        .setTimestampUtc(Instant.now().toString())
-                        .setData(ByteString.copyFromUtf8(str))
-                        .build();
-
-                request = Request
-                        .newBuilder()
-                        .setPutRequest(
-                                PutRequest
-                                        .newBuilder()
-                                        .setMetaData(metaData)
-                                        .setDatFragment(datFragment)
-                                        .build()
-                        )
-                        .build();
-
-                // send fragment
-                logger.info("sending data " + request.getPutRequest().getDatFragment().toString());
-                requestObserver.onNext(request);
-            }
+            bufferedReader.close();
+            fileReader.close();
 
             // send completed
             requestObserver.onCompleted();
+            done.await();
         } catch (StatusRuntimeException e) {
             logger.log(Level.WARNING, "RPC failed: {0}", e.getStatus());
             return;
@@ -206,8 +168,14 @@ public class ProjectClient {
             requestObserver.onError(e);
             logger.log(Level.WARNING, "RPC failed: {0}", e.getMessage());
             return;
+        } catch (FileNotFoundException e) {
+            logger.info(e.getStackTrace().toString());
+        } catch (IOException e) {
+            e.printStackTrace();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
         }
-        logger.info("getHandler DONE");
+        logger.info("putHandler DONE");
     }
 
 
@@ -300,9 +268,9 @@ public class ProjectClient {
         ProjectClient client = new ProjectClient(host, port);
         try {
             /* Access a service running on the local machine on port */
-            client.ping();
-            client.getHandler();
-            client.putHandler();
+//            client.ping();
+//            client.getHandler();
+            client.putHandler("/Users/aaronlam/Desktop/test_data/3.mesowest.out");
         } finally {
             client.shutdown();
         }
