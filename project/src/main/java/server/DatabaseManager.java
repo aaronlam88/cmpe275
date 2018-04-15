@@ -135,7 +135,6 @@ public class DatabaseManager {
     public DatabaseManager(String username, String password, String database) {
         connection = DatabaseConnection.getDatabaseConnection(username, password, database);
         setupConnection();
-
     }
 
     private void setupConnection() {
@@ -143,8 +142,9 @@ public class DatabaseManager {
             connection.setAutoCommit(false);
             batchPreparedStmt = connection.prepareStatement(insertStmt);
             batchPreparedStmt.setFetchSize(batchSize);
+            executeQuery(createTable);
         } catch (SQLException e) {
-            e.printStackTrace();
+            logger.info("setupConnection " + e.getStackTrace().toString());
         }
     }
 
@@ -191,9 +191,13 @@ public class DatabaseManager {
     /**
      * add statement to batch
      */
-    public void addToBatch(String row) {
-        String[] values = row.trim().split("\\s+");
-        addToBatch(values);
+    public void addToBatch(String rows) {
+        String[] rowArray = rows.split("\n");
+        for (String row : rowArray) {
+            logger.info(row);
+            String[] values = row.trim().split("\\s+");
+            addToBatch(values);
+        }
     }
 
     /**
@@ -236,8 +240,9 @@ public class DatabaseManager {
             currBatchSize = batchSize;
             batchPreparedStmt.executeBatch();
             connection.commit();
+            batchPreparedStmt.clearParameters();
         } catch (SQLException e) {
-            e.printStackTrace();
+            logger.info("commitBatch " + e.getStackTrace().toString());
         }
     }
 
@@ -250,12 +255,10 @@ public class DatabaseManager {
     public void executeQuery(String query) {
         try {
             Statement statement = connection.createStatement();
-            if (!statement.execute(query)) {
-                logger.info("something wrong with the insert statement [" + query + "]");
-            }
+            statement.execute(query);
             connection.commit();
         } catch (Exception e) {
-            logger.log(Level.WARNING, "insertQuery error ", e);
+            logger.info("executeQuery " + e.getStackTrace().toString());
         }
     }
 
@@ -270,7 +273,7 @@ public class DatabaseManager {
             Statement statement = connection.createStatement();
             return statement.executeQuery(query);
         } catch (Exception e) {
-            logger.log(Level.WARNING, "getResultSet error ", e);
+            logger.info("getResultSet " + e.getStackTrace().toString());
             return null;
         }
     }

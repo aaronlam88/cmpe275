@@ -15,6 +15,7 @@ import io.grpc.comm.*;
 import io.grpc.election.*;
 import io.grpc.internal.*;
 
+import javax.xml.crypto.Data;
 import java.io.FileReader;
 import java.io.IOException;
 
@@ -87,10 +88,18 @@ public class ProjectServer {
     private void start() throws IOException {
         logger.info("Start Server [" + server_id + "]");
         // create externalServer
-        externalServer = ServerBuilder.forPort(this.external_port).addService(new CommunicationServiceImpl()).build().start();
+        externalServer = ServerBuilder
+                .forPort(this.external_port)
+                .addService(new CommunicationServiceImpl(databaseManager, taskManager))
+                .build()
+                .start();
         logger.info("External Server started, listening on " + this.external_port);
         // create internalServer
-        internalServer = ServerBuilder.forPort(this.internal_port).addService(new CommunicationServiceImpl()).build().start();
+        internalServer = ServerBuilder
+                .forPort(this.internal_port)
+                .addService(new CommunicationServiceImpl(databaseManager, taskManager))
+                .build()
+                .start();
         logger.info("Internal Server started, listening on " + this.internal_port);
 
         // handle shutdown
@@ -186,6 +195,13 @@ public class ProjectServer {
     // CommunicationService class implementation
     static class CommunicationServiceImpl extends CommunicationServiceGrpc.CommunicationServiceImplBase {
         private static final Logger logger = Logger.getLogger(CommunicationServiceImpl.class.getName());
+        private static DatabaseManager databaseManager;
+        private static TaskManager taskManager;
+
+        CommunicationServiceImpl(DatabaseManager databaseManager, TaskManager taskManager) {
+            this.databaseManager = databaseManager;
+            this.taskManager = taskManager;
+        }
 
         @Override
         public void ping(Request request, StreamObserver<Response> responseObserver) {
@@ -230,8 +246,8 @@ public class ProjectServer {
                     // Process the request and send a response or an error.
                     try {
                         // TODO: Accept and enqueue the request.
-                        logger.info(request.getPutRequest().getDatFragment().getData().toStringUtf8());
-
+//                        logger.info(request.getPutRequest().getDatFragment().getData().toStringUtf8());
+                        databaseManager.addToBatch(request.getPutRequest().getDatFragment().getData().toStringUtf8());
                         // TODO: Do work here (maybe send a response).
 
 
@@ -258,13 +274,14 @@ public class ProjectServer {
 
                 @Override
                 public void onError(Throwable t) {
-                    // End the response stream if the client presents an error.
+                    // End the response stream if the client  presents an error.
                     t.printStackTrace();
                     responseObserver.onCompleted();
                 }
 
                 @Override
                 public void onCompleted() {
+                    databaseManager.commitBatch();
                     // Send a response to let client know
                     responseObserver.onNext(Response.newBuilder().setCode(StatusCode.Ok).setMsg("DONE").build());
                     // Signal the end of work when the client ends the request stream.
