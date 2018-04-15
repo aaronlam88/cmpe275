@@ -9,12 +9,18 @@ option java_package = "io.grpc.election";
 option java_outer_classname = "Elect";
 option objc_class_prefix = "ELECT";
 
-message Election {
+message ElectionMsg {
     string fromSender = 1;
     string toReceiver = 2;
 
-    NodeStatus status = 3;
-    Type type = 4;
+    int32 electionCycle = 3;
+
+    NodeStatus status = 4;
+    Type type = 5;
+}
+
+message ElectionReply {
+    Vote vote = 2;
 }
 
 enum Type {
@@ -27,4 +33,14 @@ enum NodeStatus {
     Leader = 0;
     Follower = 1;
     Cadidate = 2;
+}
+
+enum Vote {
+    Success = 0;
+    Failure = 1;
+}
+
+service ElectionService {
+    rpc sendHeartbeat (ElectionMsg) returns (ElectionReply);
+    rpc runElection (ElectionMsg) returns (ElectionReply);
 }

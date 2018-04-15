@@ -2,45 +2,72 @@ package server;
 
 import com.google.gson.Gson;
 import com.google.protobuf.ByteString;
+
 import config.ServerConfig;
+
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.Status;
-import io.grpc.comm.*;
 import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
 
+import io.grpc.comm.*;
+import io.grpc.election.*;
+import io.grpc.internal.*;
+
 import java.io.FileReader;
 import java.io.IOException;
+
+import java.util.HashMap;
 import java.util.LinkedList;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Logger;
 
-// ProjectServer is similar to Node
+/**
+ * ProjectServer is similar to Node, ProcessingNode concept
+ * A ProjectServer has:
+ * variables:
+ * server_id: default 1, as the id of node in a cluster
+ * external_port: default 8080, use to accept grpc call from external client (cluster to cluster)
+ * internal_port: default 8081, use to accept grpc call from internal client (node to node)
+ * election_cycle: default 1, current election term
+ * message objects:
+ * externalServer: a Server created using external_port
+ * internalServer: a Server created using internal_port
+ * rountingTable: a HashMap of <server_id, InternalClient> use to call grpc func of other ProjectServer
+ * work handler objects:
+ * electionManager: handle leader election process
+ * databaseManager: handle database insertion and selection
+ * taskManager: distribute tasks to other nodes
+ */
 public class ProjectServer {
     private static final Logger logger = Logger.getLogger(ProjectServer.class.getName());
 
     private int server_id; // server id is same as node id
     private int external_port; // port use for team2team communication
     private int internal_port; // port use for node2node communication
-
-    LinkedBlockingQueue<Request> incomming_queue; // use for buffer incoming Request
-    LinkedBlockingQueue<Response> outgoing_queue; // use for buffer outgoing Response
+    private int election_cycle = 1;
 
     private Server externalServer;
     private Server internalServer;
 
-    public ProjectServer(int server_id, int external_port, int internal_port) {
+    private HashMap<Integer, InternalClient> routingTable = new HashMap<>();
+
+    private DatabaseManager databaseManager;
+    private ElectionManager electionManager;
+    private TaskManager taskManager;
+
+
+    private ProjectServer(int server_id, int external_port, int internal_port) {
         this.server_id = server_id;
         this.external_port = external_port;
         this.internal_port = internal_port;
     }
 
-    public ProjectServer(String config_file_path) {
+    private ProjectServer(String server_config_file_path) {
         Gson gson = new Gson();
         try {
-            ServerConfig config = gson.fromJson(new FileReader(config_file_path), ServerConfig.class);
+            ServerConfig config = gson.fromJson(new FileReader(server_config_file_path), ServerConfig.class);
             this.server_id = config.server_id;
             this.internal_port = config.internal_port;
             this.external_port = config.external_port;
@@ -70,8 +97,7 @@ public class ProjectServer {
         Runtime.getRuntime().addShutdownHook(new Thread() {
             @Override
             public void run() {
-                // Use stderr here since the logger may have been reset by its JVM shutdown
-                // hook.
+                // Use stderr here since the logger may have been reset by its JVM shutdown hook.
                 System.err.println("*** shutting down gRPC server since JVM is shutting down");
                 ProjectServer.this.stop();
                 System.err.println("*** server shut down");
@@ -90,8 +116,7 @@ public class ProjectServer {
     }
 
     /**
-     * Await termination on the main thread since the grpc library uses daemon
-     * threads.
+     * Await termination on the main thread since the grpc library uses daemon threads.
      */
     private void blockUntilShutdown() throws InterruptedException {
         if (externalServer != null) {
@@ -110,44 +135,55 @@ public class ProjectServer {
         int server_id = 1;
         int external_port = 8080;
         int internal_port = 8081;
-        String config_file_path = null;
+        String server_config_file_path = null;
+        String db_config_file_path = null;
 
         switch (args.length) {
             case 3:
                 internal_port = Integer.parseInt(args[2]);
                 // no break intentionally
             case 2:
-                external_port = Integer.parseInt(args[1]);
+                try {
+                    external_port = Integer.parseInt(args[1]);
+                } catch (Exception e) {
+                    db_config_file_path = args[1];
+                }
                 // no break intentionally
             case 1:
                 try {
                     server_id = Integer.parseInt(args[0]);
                 } catch (Exception e) {
-                    config_file_path = args[0];
+                    server_config_file_path = args[0];
                 }
             case 0:
                 // no break intentionally
                 break;
             default:
-                logger.info("use [server_id | config_file_path [external_port [internal_port] ] ]");
+                logger.info("use [server_id | server_config_file_path [external_port [internal_port] ] ]");
                 System.exit(-1);
         }
 
         ProjectServer server;
-        if (config_file_path == null) {
+        if (server_config_file_path == null) {
             server = new ProjectServer(server_id, external_port, internal_port);
         } else {
-            server = new ProjectServer(config_file_path);
+            server = new ProjectServer(server_config_file_path);
         }
 
-        ElectionManager electionManager = new ElectionManager();
-        TaskManager taskManager = new TaskManager(server.incomming_queue, server.outgoing_queue);
+        if (db_config_file_path != null) {
+            server.databaseManager = new DatabaseManager(db_config_file_path);
+        } else {
+            // default
+            server.databaseManager = new DatabaseManager("cmpe275", "cmpe275!", "jdbc:mysql://localhost:3306/cmpe275?autoReconnect=true&useSSL=false");
+        }
+
+        server.electionManager = new ElectionManager();
 
         server.start();
         server.blockUntilShutdown();
     }
 
-    // Service class implementation
+    // CommunicationService class implementation
     static class CommunicationServiceImpl extends CommunicationServiceGrpc.CommunicationServiceImplBase {
         private static final Logger logger = Logger.getLogger(CommunicationServiceImpl.class.getName());
 
@@ -290,6 +326,18 @@ public class ProjectServer {
             }
             responseObserver.onCompleted();
             logger.info("getHandler DONE");
+        }
+    }
+
+    static class ElectionServiceImpl extends ElectionServiceGrpc.ElectionServiceImplBase {
+        @Override
+        public void sendHeartbeat(ElectionMsg request, StreamObserver<ElectionReply> responseObserver) {
+
+        }
+
+        @Override
+        public void runElection(ElectionMsg request, StreamObserver<ElectionReply> responseObserver) {
+
         }
     }
 }

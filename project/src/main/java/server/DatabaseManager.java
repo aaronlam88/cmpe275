@@ -3,10 +3,10 @@ package server;
 import com.google.gson.Gson;
 
 import java.io.*;
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.ResultSet;
-import java.sql.Statement;
+import java.sql.*;
+import java.text.DateFormat;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -40,7 +40,7 @@ class DatabaseConnection {
     /**
      * This function will return the singleton connection Require a path to a json
      * with values for key username, password, jdbc_prefix, host, port, database,
-     * jdbc_setting. Checkout DatabaseConfig
+     * jdbc_setting. See DatabaseConfig
      *
      * @param path_to_config_json: path to config.json file
      * @return java.sql.Connection
@@ -75,18 +75,225 @@ class DatabaseConnection {
         }
         return connection;
     }
+
+    public static Connection getDatabaseConnection(String username, String password, String database) {
+        if (connection == null) {
+            logger.info("Connecting to database " + database + "...");
+
+            try {
+                connection = DriverManager.getConnection(database, username, password);
+                connection.setAutoCommit(false);
+                logger.info("Connected to " + database);
+            } catch (Exception e) {
+                logger.info("Cannot connect to database:'" + database + "' with error " + e.getMessage());
+            }
+        }
+        return connection;
+    }
 }
 
 public class DatabaseManager {
     private static final Logger logger = Logger.getLogger(DatabaseManager.class.getName());
+
+    // const variable
+    private final static int batchSize = 10000;
+
+    private final static String createTable = "CREATE TABLE `mesowest` (\n"+
+            "  `STN` text,\n"+
+            "  `DATE` datetime DEFAULT NULL,\n"+
+            "  `MNET` double DEFAULT NULL,\n"+
+            "  `SLAT` double DEFAULT NULL,\n"+
+            "  `SLON` double DEFAULT NULL,\n"+
+            "  `SELV` double DEFAULT NULL,\n"+
+            "  `TMPF` double DEFAULT NULL,\n"+
+            "  `SKNT` double DEFAULT NULL,\n"+
+            "  `DRCT` double DEFAULT NULL,\n"+
+            "  `GUST` double DEFAULT NULL,\n"+
+            "  `PMSL` double DEFAULT NULL,\n"+
+            "  `ALTI` double DEFAULT NULL,\n"+
+            "  `DWPF` double DEFAULT NULL,\n"+
+            "  `RELH` double DEFAULT NULL,\n"+
+            "  `WTHR` double DEFAULT NULL,\n"+
+            "  `P24I` double DEFAULT NULL\n"+
+            ") ENGINE=InnoDB DEFAULT CHARSET=utf8;\n";
+
+    private final static String insertStmt = "INSERT INTO `cmpe275`.`mesowest`\n" +
+            "(`STN`,`DATE`,`MNET`,`SLAT`,`SLON`,`SELV`,`TMPF`,`SKNT`,`DRCT`,`GUST`,`PMSL`,`ALTI`,`DWPF`,`RELH`,`WTHR`,`P24I`)\n" +
+            "VALUES\n" +
+            "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);\n";
+
+    // variable
     private Connection connection = null;
+    private static PreparedStatement batchPreparedStmt;
+    private static int currBatchSize = batchSize;
 
     public DatabaseManager(String path_to_config_json) {
-        this.connection = DatabaseConnection.getDatabaseConnection(path_to_config_json);
+        connection = DatabaseConnection.getDatabaseConnection(path_to_config_json);
+        setupConnection();
+    }
+
+    public DatabaseManager(String username, String password, String database) {
+        connection = DatabaseConnection.getDatabaseConnection(username, password, database);
+        setupConnection();
+
+    }
+
+    private void setupConnection() {
+        try {
+            connection.setAutoCommit(false);
+            batchPreparedStmt = connection.prepareStatement(insertStmt);
+            batchPreparedStmt.setFetchSize(batchSize);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * insert a single row to database
+     * break the String row into arrays of values and
+     * will call insertSingleRow(String[] values) to do insert
+     * @param row
+     */
+    public void inserSingletRow (String row) {
+        String[] values = row.trim().split("\\s+");
+        insertSingleRow(values);
+    }
+
+    /**
+     * String[] values should have 16 field and
+     * @param values
+     */
+    public void insertSingleRow (String[] values) {
+        if(values.length != 16) {
+            logger.info("Incorret format for insert query");
+        }
+        try {
+            PreparedStatement ps = connection.prepareStatement(insertStmt);
+            DateFormat format = new SimpleDateFormat("yyyyMMdd/HHmm");
+            for(int i = 0, j = 1; i < values.length; ++i, ++j) {
+                if (i == 1) {
+                    ps.setTimestamp(j, new java.sql.Timestamp(format.parse(values[i]).getTime()));
+                } else if (i == 0) {
+                    ps.setString(j, values[i]);
+                } else {
+                    ps.setDouble(j, Double.parseDouble(values[i]));
+                }
+            }
+            ps.executeUpdate();
+            connection.commit();
+        } catch (SQLException e) {
+            logger.info("SQLException " + e.getStackTrace().toString());
+        } catch (ParseException e) {
+            logger.info("ParseException" + e.getStackTrace().toString());
+        }
+    }
+
+    /**
+     * add statement to batch
+     */
+    public void addToBatch(String row) {
+        String[] values = row.trim().split("\\s+");
+        addToBatch(values);
+    }
+
+    /**
+     * add statement to batch
+     */
+    public void addToBatch(String[] values) {
+        if(values.length != 16) {
+            logger.info("Incorret format for insert query");
+        }
+
+        try {
+            batchPreparedStmt.clearParameters();
+            DateFormat format = new SimpleDateFormat("yyyyMMdd/HHmm");
+            for(int i = 0, j = 1; i < values.length; ++i, ++j) {
+                if (i == 1) {
+                    batchPreparedStmt.setTimestamp(j, new java.sql.Timestamp(format.parse(values[i]).getTime()));
+                } else if (i == 0) {
+                    batchPreparedStmt.setString(j, values[i]);
+                } else {
+                    batchPreparedStmt.setDouble(j, Double.parseDouble(values[i]));
+                }
+            }
+            batchPreparedStmt.addBatch();
+            currBatchSize--;
+            if (currBatchSize <= 0) {
+                this.commitBatch();
+            }
+        } catch (SQLException e) {
+            logger.info("SQLException " + e.getStackTrace().toString());
+        } catch (ParseException e) {
+            logger.info("ParseException" + e.getStackTrace().toString());
+        }
+    }
+
+    /**
+     *
+     */
+    public void commitBatch() {
+        try {
+            currBatchSize = batchSize;
+            batchPreparedStmt.executeBatch();
+            connection.commit();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * execute insert statement
+     *
+     * @param query
+     * @return null
+     */
+    public void executeQuery(String query) {
+        try {
+            Statement statement = connection.createStatement();
+            if (!statement.execute(query)) {
+                logger.info("something wrong with the insert statement [" + query + "]");
+            }
+            connection.commit();
+        } catch (Exception e) {
+            logger.log(Level.WARNING, "insertQuery error ", e);
+        }
+    }
+
+    /**
+     * execute the query and return a java.sql.ResultSet
+     *
+     * @param query
+     * @return java.sql.ResultSet
+     */
+    public ResultSet getResultSet(String query) {
+        try {
+            Statement statement = connection.createStatement();
+            return statement.executeQuery(query);
+        } catch (Exception e) {
+            logger.log(Level.WARNING, "getResultSet error ", e);
+            return null;
+        }
+    }
+
+    /**
+     * Bellow are functions for future importment
+     */
+
+    /**
+     * execute the query, write result to a tmp file, return the file path (String)
+     *
+     * @param query
+     * @return String file_path
+     */
+    public String getCSV(String query) {
+        String file_path = null;
+
+        return file_path;
     }
 
     /**
      * insert csv file to database
+     *
      * @param file_path
      */
     public void insertCSV(String file_path) {
@@ -97,8 +304,7 @@ public class DatabaseManager {
 
             for (String line = buffered.readLine(); line != null; line = buffered.readLine()) {
                 // process line
-                line = line.trim(); // trim, remove white spaces at begin and end
-                String[] tokens = line.split(" +"); // split line into different fields
+                String[] tokens = line.trim().split("\\s+"); // split line into different fields
 
                 // valid table row should have 16 fields
                 if (tokens.length == 16) {
@@ -106,12 +312,13 @@ public class DatabaseManager {
                 }
             }
         } catch (Exception e) {
-            logger.log(Level.WARNING, "insertGZip error " , e);
+            logger.log(Level.WARNING, "insertGZip error ", e);
         }
     }
 
     /**
      * insert gzip file to database
+     *
      * @param file_path
      */
     public void insertGZip(String file_path) {
@@ -123,57 +330,17 @@ public class DatabaseManager {
 
             for (String line = buffered.readLine(); line != null; line = buffered.readLine()) {
                 // process line
-                line = line.trim(); // trim, remove white spaces at begin and end
-                String[] tokens = line.split(" +"); // split line into different fields
+                String[] tokens = line.trim().split("\\s+"); // split line into different fields
 
                 // valid table row should have 16 fields
                 if (tokens.length == 16) {
 
+                } else {
+                    continue;
                 }
             }
         } catch (Exception e) {
-            logger.log(Level.WARNING, "insertGZip error " , e);
+            logger.log(Level.WARNING, "insertGZip error ", e);
         }
-    }
-
-    /**
-     * execute insert statement
-     * @param insertStmt
-     */
-    public void insertQuery(String insertStmt) {
-        try {
-            Statement statement = connection.createStatement();
-            if (!statement.execute(insertStmt)) {
-                logger.info("something wrong with the insert statement [" + insertStmt + "]");
-            }
-        } catch (Exception e) {
-            logger.log(Level.WARNING, "insertQuery error " , e);
-        }
-    }
-
-    /**
-     * execute the query and return a java.sql.ResultSet
-     * @param query
-     * @return java.sql.ResultSet
-     */
-    public ResultSet getResultSet(String query) {
-        try {
-            Statement statement = connection.createStatement();
-            return statement.executeQuery(query);
-        } catch (Exception e) {
-            logger.log(Level.WARNING, "getResultSet error " , e);
-            return null;
-        }
-    }
-
-    /**
-     * execute the query, write result to a tmp file, return the file path (String)
-     * @param query
-     * @return String file_path
-     */
-    public String getCSV(String query) {
-        String file_path = null;
-
-        return file_path;
     }
 }

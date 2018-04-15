@@ -67,7 +67,7 @@ enum StatusCode {
 
 // grpc api function
 service CommunicationService {
-    rpc PutHandler (stream Request)  returns (Response);
-    rpc GetHandler (Request)         returns (stream Response);
-    rpc Ping       (Request)         returns (Response);
+    rpc PutHandler (stream Request) returns (Response);
+    rpc GetHandler (Request) returns (stream Response);
+    rpc Ping (Request) returns (Response);
 }
