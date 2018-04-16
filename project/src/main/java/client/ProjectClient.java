@@ -1,21 +1,19 @@
 package client;
 
+import com.cmpe275.grpcComm.*;
 import com.google.protobuf.ByteString;
-import com.google.type.Date;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.StatusRuntimeException;
-//import io.grpc.comm.*;
-import com.cmpe275.grpcComm.*;
 import io.grpc.stub.ClientCallStreamObserver;
 import io.grpc.stub.ClientResponseObserver;
 import io.grpc.stub.StreamObserver;
 
-import javax.xml.crypto.Data;
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
+import java.io.InputStreamReader;
 import java.net.InetAddress;
-import java.time.Instant;
-import java.util.LinkedList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;

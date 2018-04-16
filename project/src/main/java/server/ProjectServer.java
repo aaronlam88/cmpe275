@@ -1,31 +1,24 @@
 package server;
 
+import com.cmpe275.grpcComm.*;
 import com.google.gson.Gson;
 import com.google.protobuf.ByteString;
-
 import config.ServerConfig;
-
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.Status;
+import io.grpc.election.ElectionMsg;
+import io.grpc.election.ElectionReply;
+import io.grpc.election.ElectionServiceGrpc;
 import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
 
-//import io.grpc.comm.*;
-import com.cmpe275.grpcComm.*;
-
-import io.grpc.election.*;
-import io.grpc.internal.*;
-
-import javax.xml.crypto.Data;
 import java.io.FileReader;
 import java.io.IOException;
-
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
 import java.util.logging.Logger;
