@@ -11,7 +11,9 @@ import io.grpc.Status;
 import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
 
-import io.grpc.comm.*;
+//import io.grpc.comm.*;
+import com.cmpe275.grpcComm.*;
+
 import io.grpc.election.*;
 import io.grpc.internal.*;
 
@@ -252,6 +254,7 @@ public class ProjectServer {
                     // Process the request and send a response or an error.
                     try {
                         // insert string or strings to database
+                        logger.info(request.getPutRequest().getDatFragment().getData().toStringUtf8() + "\n");
                         databaseManager.addToBatch(request.getPutRequest().getDatFragment().getData().toStringUtf8());
 
                         // Check the provided ServerCallStreamObserver to see if it is still ready to accept more messages.

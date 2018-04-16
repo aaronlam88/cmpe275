@@ -1,7 +1,9 @@
 package server;
 
-import io.grpc.comm.Request;
-import io.grpc.comm.Response;
+//import io.grpc.comm.Request;
+//import io.grpc.comm.Response;
+import com.cmpe275.grpcComm.*;
+
 
 import java.io.*;
 import java.util.concurrent.LinkedBlockingQueue;

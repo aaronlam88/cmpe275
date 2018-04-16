@@ -1,0 +1,46 @@
+// This proto use for election
+
+syntax = "proto3";
+
+// The following option is for Java program
+// To use this proto in you Java class, do 'import io.grpc.comm.*;'
+option java_multiple_files = true;
+option java_package = "io.grpc.election";
+option java_outer_classname = "Elect";
+option objc_class_prefix = "ELECT";
+
+message ElectionMsg {
+    string fromSender = 1;
+    string toReceiver = 2;
+
+    int32 electionCycle = 3;
+
+    NodeStatus status = 4;
+    Type type = 5;
+}
+
+message ElectionReply {
+    Vote vote = 2;
+}
+
+enum Type {
+    Heartbeat = 0;
+    VoteRequest = 1; // request receiver to vote for sender
+    VoteRespont = 2; // reponst vote for sender from receiver
+}
+
+enum NodeStatus {
+    Leader = 0;
+    Follower = 1;
+    Cadidate = 2;
+}
+
+enum Vote {
+    Success = 0;
+    Failure = 1;
+}
+
+service ElectionService {
+    rpc sendHeartbeat (ElectionMsg) returns (ElectionReply);
+    rpc runElection (ElectionMsg) returns (ElectionReply);
+}
