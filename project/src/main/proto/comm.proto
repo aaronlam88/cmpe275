@@ -3,11 +3,8 @@
 syntax = "proto3";
 
 // The following option is for Java program
-// To use this proto in you Java class, do 'import io.grpc.comm.*;'
-//option java_multiple_files = true;
-//option java_package = "io.grpc.comm";
-//option java_outer_classname = "CommProto";
-//option objc_class_prefix = "COMM";
+// To use this proto in you Java class, do 'com.cmpe275.grpcComm.*;'
+
 package grpcComm;
 option java_multiple_files = true;
 option java_package = "com.cmpe275.grpcComm";

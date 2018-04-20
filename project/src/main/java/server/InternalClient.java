@@ -1,18 +1,18 @@
 package server;
 
+// grpc proto import
+import com.cmpe275.grpcComm.*;
+import io.grpc.election.*;
+import io.grpc.internal.*;
+
 import com.google.protobuf.ByteString;
-import com.google.type.Date;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.StatusRuntimeException;
-//import io.grpc.comm.*;
-import com.cmpe275.grpcComm.*;
-
 import io.grpc.stub.ClientCallStreamObserver;
 import io.grpc.stub.ClientResponseObserver;
 import io.grpc.stub.StreamObserver;
 
-import javax.xml.crypto.Data;
 import java.net.InetAddress;
 import java.time.Instant;
 import java.util.LinkedList;
@@ -55,7 +55,7 @@ public class InternalClient {
     /**
      * Construct client for accessing server using the existing channel.
      */
-    InternalClient(ManagedChannel channel) {
+    public InternalClient(ManagedChannel channel) {
         this.channel = channel;
         this.blockingStub = CommunicationServiceGrpc.newBlockingStub(this.channel);
         this.nonBlockingStub = CommunicationServiceGrpc.newStub(channel);
@@ -259,30 +259,5 @@ public class InternalClient {
         logger.info("getHandler DONE");
     }
 
-    public static void main(String[] args) throws Exception {
-        String host = "localhost"; // default host;
-        int port = 8080; // default port
-
-        // if host or port are supplied, use them
-        switch (args.length) {
-            case 2:
-                port = Integer.parseInt(args[1]);
-                // fall over to case 1
-                // no break intentionally
-            case 1:
-                host = args[0];
-                break;
-        }
-
-        InternalClient client = new InternalClient(host, port);
-        try {
-            /* Access a service running on the local machine on port */
-            client.ping();
-            client.getHandler();
-            client.putHandler();
-        } finally {
-            client.shutdown();
-        }
-    }
 }
 

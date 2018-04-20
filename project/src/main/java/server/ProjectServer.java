@@ -1,18 +1,24 @@
 package server;
 
+// grpc proto import
+
 import com.cmpe275.grpcComm.*;
-import com.google.gson.Gson;
-import com.google.protobuf.ByteString;
-import config.ServerConfig;
+import io.grpc.election.*;
+import io.grpc.internal.*;
+
+// grpc import
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.Status;
-import io.grpc.election.ElectionMsg;
-import io.grpc.election.ElectionReply;
-import io.grpc.election.ElectionServiceGrpc;
 import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
 
+// extra lib
+import com.google.gson.Gson;
+import com.google.protobuf.ByteString;
+import config.ServerConfig;
+
+// java lib
 import java.io.FileReader;
 import java.io.IOException;
 import java.sql.ResultSet;
@@ -142,14 +148,23 @@ public class ProjectServer {
      * Main launches the server from the command line.
      */
     public static void main(String[] args) throws IOException, InterruptedException {
-        // default value
+        // default value for this server
         int server_id = 1;
         int external_port = 8080;
         int internal_port = 8081;
+
+        // default value for connected to server
+        String to_host = "localhost";
+        int to_port = 9090;
+
         String server_config_file_path = null;
         String db_config_file_path = null;
 
         switch (args.length) {
+            case 5:
+                to_host = args[4];
+            case 4:
+                to_port = Integer.parseInt(args[3]);
             case 3:
                 internal_port = Integer.parseInt(args[2]);
                 // no break intentionally
@@ -166,35 +181,64 @@ public class ProjectServer {
                 } catch (Exception e) {
                     server_config_file_path = args[0];
                 }
-            case 0:
                 // no break intentionally
+            case 0:
                 break;
             default:
-                logger.info("use [server_id | server_config_file_path [external_port [internal_port] ] ]");
+                logger.info("use [server_id] [external_port [internal_port] ] [to_server_host] [to_server_port]\n" +
+                        "or use [server_config_file_path]");
                 System.exit(-1);
         }
 
-        ProjectServer server;
+        // get config from file
         if (server_config_file_path == null) {
-            server = new ProjectServer(server_id, external_port, internal_port);
-        } else {
-            server = new ProjectServer(server_config_file_path);
+            Gson gson = new Gson();
+            try {
+                ServerConfig config = gson.fromJson(new FileReader(server_config_file_path), ServerConfig.class);
+                server_id = config.server_id;
+                internal_port = config.internal_port;
+                external_port = config.external_port;
+                to_host = config.to_host;
+                to_port = config.to_port;
+            } catch (Exception e) {
+                logger.info(e.getMessage());
+                System.exit(-1);
+            }
         }
 
+
+        // start server
+        ProjectServer server = new ProjectServer(server_id, external_port, internal_port);
+
+        // start DatabaseManager
         if (db_config_file_path != null) {
             server.databaseManager = new DatabaseManager(db_config_file_path);
         } else {
             // default
-            server.databaseManager = new DatabaseManager("cmpe275", "cmpe275!", "jdbc:mysql://localhost:3306/cmpe275?autoReconnect=true&useSSL=false");
+            server.databaseManager = new DatabaseManager(
+                    "cmpe275",
+                    "cmpe275!",
+                    "jdbc:mysql://localhost:3306/cmpe275?autoReconnect=true&useSSL=false");
         }
 
+        // start ElectionManager
         server.electionManager = new ElectionManager();
 
+        // start client
+        InternalClient client = new InternalClient(to_host, to_port);
+
         server.start();
+        client.shutdown();
         server.blockUntilShutdown();
     }
 
-    // CommunicationService class implementation
+    /***************************************
+     ** GRPC functions implementation here
+     ****************************************/
+
+    /**
+     * CommunicationService Class Implementation
+     */
     static class CommunicationServiceImpl extends CommunicationServiceGrpc.CommunicationServiceImplBase {
         private static final Logger logger = Logger.getLogger(CommunicationServiceImpl.class.getName());
         private static DatabaseManager databaseManager;
@@ -311,11 +355,6 @@ public class ProjectServer {
                 return;
             }
 
-            // create uuid for a file, fragment that file, count number of fragments
-//            String uuid = "uuid";
-//            int numberOfFragment = 3;
-//            int mediaType = 1;
-
             // send all fragments
             try {
                 ResultSetMetaData metadata = resultSet.getMetaData();
@@ -373,6 +412,32 @@ public class ProjectServer {
         }
     }
 
+    /**
+     * Internal Communication class Implementation
+     */
+    static class InternalServiceImpl extends InternalServiceGrpc.InternalServiceImplBase {
+        @Override
+        public void ping(InternalRequest request, StreamObserver<InternalResponse> responseObserver) {
+            InternalHeader internalHeader = request.getHeader();
+            logger.info("ping from " + internalHeader.getFromSenderIP() + ":" + internalHeader.getFromSenderPort());
+
+            // create a Response Builder, use this builder to build a Response
+            InternalResponse response = InternalResponse
+                    .newBuilder()
+                    .setHeader(InternalHeader
+                            .newBuilder()
+                            .build()
+                    )
+                    .build();
+
+            responseObserver.onNext(response);
+            responseObserver.onCompleted();
+        }
+    }
+
+    /**
+     * ElectionService Class Implementation
+     */
     static class ElectionServiceImpl extends ElectionServiceGrpc.ElectionServiceImplBase {
         @Override
         public void sendHeartbeat(ElectionMsg request, StreamObserver<ElectionReply> responseObserver) {
