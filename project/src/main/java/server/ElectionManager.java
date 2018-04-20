@@ -1,11 +1,25 @@
 package server;
 
+import java.util.Timer;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
 public class ElectionManager {
+  //private static final Logger logger = Logger.getLogger(ElectionManager.class.getName());
     //TODO implement Election algo here
     public NodeState nodeState;
 
     public ElectionManager() {
         this.nodeState = NodeState.getNodeState();
+
+    }
+
+    public void startCountDown() {
+      nodeState.countDown();
+    }
+
+    public void receiveHeartBeat() {
+      nodeState.resetTimer();
     }
 }
 
@@ -23,7 +37,7 @@ abstract class State {
 
 class NodeState {
     private static NodeState nodeState = null;
-
+    private Timer timer;
     State leaderState;
     State followerState;
     State cadidateState;
@@ -52,6 +66,7 @@ class NodeState {
         currentState = followerState;
         voted = false;
         timeout = (int) (Math.random() * 300) + 200; // random 200 - 500 ms timeout
+        timer = new Timer();
     }
 
     public State getCurrentState() {
@@ -72,6 +87,25 @@ class NodeState {
 
     public State getCadidateState() {
         return cadidateState;
+    }
+
+    public void countDown() {
+      timer.schedule(new java.util.TimerTask() {
+            @Override
+            public void run() {
+                currentState.moveToNextState();
+            }
+          },
+            timeout);
+    }
+
+    public void resetTimer() {
+      nodeState.setTime();
+      countDown();
+    }
+
+    public void setTime() {
+      timeout = (int) (Math.random() * 300) + 200;
     }
 }
 
@@ -112,6 +146,8 @@ class LeaderState extends State {
 }
 
 class FollowerState extends State {
+  private static final Logger logger = Logger.getLogger(FollowerState.class.getName());
+    private Timer time;
     NodeState nodeState;
 
     public FollowerState(NodeState nodeState) {
@@ -144,8 +180,10 @@ class FollowerState extends State {
 
     public void moveToNextState() {
         //TODO after timeout, no heartbeat from leader
+        logger.info("Follower change to Candidate");
         nodeState.setCurrentState(nodeState.getCadidateState());
     }
+
 }
 
 class CadidateState extends State {

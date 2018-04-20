@@ -7,6 +7,7 @@ import config.ServerConfig;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.Status;
+import io.grpc.election.Vote;
 import io.grpc.election.ElectionMsg;
 import io.grpc.election.ElectionReply;
 import io.grpc.election.ElectionServiceGrpc;
@@ -60,6 +61,7 @@ public class ProjectServer {
     private ElectionManager electionManager;
     private TaskManager taskManager;
 
+    //private Timer timer; // for timeout follower state
 
     private ProjectServer(int server_id, int external_port, int internal_port) {
         this.server_id = server_id;
@@ -100,10 +102,12 @@ public class ProjectServer {
         internalServer = ServerBuilder
                 .forPort(this.internal_port)
                 .addService(new CommunicationServiceImpl(databaseManager, taskManager))
+                .addService(new ElectionServiceImpl(electionManager))
                 .build()
                 .start();
         logger.info("Internal Server started, listening on " + this.internal_port);
 
+        electionManager.startCountDown();
         // handle shutdown
         Runtime.getRuntime().addShutdownHook(new Thread() {
             @Override
@@ -373,12 +377,33 @@ public class ProjectServer {
         }
     }
 
+    // Handle when receive a request from other service.
     static class ElectionServiceImpl extends ElectionServiceGrpc.ElectionServiceImplBase {
+        private ElectionManager electionManager;
+        //private NodeStatus senderNodeStatus;
+
+        ElectionServiceImpl(ElectionManager electionManager) {
+          this.electionManager = electionManager;
+        }
+        //receive heartbeat message if the sender is leader then acknowledge its node timeout update; otherwise ignore
         @Override
         public void sendHeartbeat(ElectionMsg request, StreamObserver<ElectionReply> responseObserver) {
+          logger.info("get message from " + request.getFromSender());
+          electionManager.receiveHeartBeat();
+          // if (request.getType() == Type.Heartbeat) {
+          //   electionManager.resetTimer();
+          // }
+          // create a Response Builder, use this builder to build a Response
+          ElectionReply response =
+                  ElectionReply.newBuilder()
+                          .setVote(Vote.Success)
+                          .build();
 
+          responseObserver.onNext(response);
+          responseObserver.onCompleted();
         }
 
+        //node state should be candidate; and if itself's node is in the state of follower, send back vote success; otherwise, failure;
         @Override
         public void runElection(ElectionMsg request, StreamObserver<ElectionReply> responseObserver) {
 
