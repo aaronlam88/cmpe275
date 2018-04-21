@@ -60,7 +60,10 @@ public class ProjectServer {
     private Server externalServer;
     private Server internalServer;
 
-    private HashMap<Integer, InternalClient> routingTable = new HashMap<>();
+    private HashMap<String, InternalClient> routingTable = new HashMap<>();
+    // key: to_host + to_port
+    // value: InternalClient connection to to_host: to_port
+    // when server need to connect to other server, it will check the host:port --> InternalClient to do connection
 
     private DatabaseManager databaseManager;
     private ElectionManager electionManager;
