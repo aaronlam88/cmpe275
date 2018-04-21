@@ -1,12 +1,11 @@
 package server;
 
+import com.cmpe275.grpcComm.*;
 import com.google.protobuf.ByteString;
 import com.google.type.Date;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.StatusRuntimeException;
-//import io.grpc.comm.*;
-import com.cmpe275.grpcComm.*;
 
 import io.grpc.stub.ClientCallStreamObserver;
 import io.grpc.stub.ClientResponseObserver;
@@ -20,6 +19,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
 
 public class InternalClient {
     private static final Logger logger = Logger.getLogger(InternalClient.class.getName());
