@@ -24,6 +24,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import java.net.InetAddress;
 /**
  * ProjectServer is similar to Node, ProcessingNode concept
  * A ProjectServer has:
@@ -45,7 +46,6 @@ public class ProjectServer {
     private static final Logger logger = Logger.getLogger(ProjectServer.class.getName());
 
     private static final int fragmentSize = 1024000; // 1,024,000 char ~= 1MB
-
 
     private int server_id; // server id is same as node id
     private int external_port; // port use for team2team communication
@@ -107,7 +107,7 @@ public class ProjectServer {
                 .start();
         logger.info("Internal Server started, listening on " + this.internal_port);
 
-        electionManager.startCountDown();
+        //electionManager.startCountDown();
         // handle shutdown
         Runtime.getRuntime().addShutdownHook(new Thread() {
             @Override
@@ -142,6 +142,9 @@ public class ProjectServer {
         }
     }
 
+    public void addNodeToNetwork(int nodeID, InternalClient toNode) {
+      routingTable.put(nodeID, toNode);
+    }
     /**
      * Main launches the server from the command line.
      */
@@ -152,6 +155,7 @@ public class ProjectServer {
         int internal_port = 8081;
         String server_config_file_path = null;
         String db_config_file_path = null;
+        String ips_config_file_path = "../src/main/resources/ips.json"; //the path to all network nodes
 
         switch (args.length) {
             case 3:
@@ -190,6 +194,21 @@ public class ProjectServer {
         } else {
             // default
             server.databaseManager = new DatabaseManager("cmpe275", "cmpe275!", "jdbc:mysql://localhost:3306/cmpe275?autoReconnect=true&useSSL=false");
+        }
+
+        //test on one system; use ports for different servers
+        String to_ip = InetAddress.getLocalHost().getHostAddress();
+        logger.info(to_ip);
+        Gson gson = new Gson();
+        NodeJson[] nodesArray = gson.fromJson(new FileReader("./src/main/resources/ips.json"), NodeJson[].class);
+
+        for (NodeJson node : nodesArray) {
+          //logger.info("Before, " +node.nodeID +" has been added to routingTable");
+          if (node.to_port != internal_port) {
+            InternalClient nodeInNetwork = new InternalClient(to_ip, node.to_port);
+            server.addNodeToNetwork(node.nodeID, nodeInNetwork);
+            logger.info("After, " + node.nodeID +" has been added to routingTable");
+          }
         }
 
         server.electionManager = new ElectionManager();
