@@ -20,6 +20,7 @@ import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -87,59 +88,6 @@ public class ProjectServer {
         this.server_id = 1;
         this.external_port = 8080;
         this.internal_port = 8081;
-    }
-
-    private void start() throws IOException {
-        logger.info("Start Server [" + server_id + "]");
-        // create externalServer
-        externalServer = ServerBuilder
-                .forPort(this.external_port)
-                .addService(new CommunicationServiceImpl(databaseManager, taskManager))
-                .build()
-                .start();
-        logger.info("External Server started, listening on " + this.external_port);
-        // create internalServer
-        internalServer = ServerBuilder
-                .forPort(this.internal_port)
-                .addService(new CommunicationServiceImpl(databaseManager, taskManager))
-                .addService(new ElectionServiceImpl(electionManager))
-                .build()
-                .start();
-        logger.info("Internal Server started, listening on " + this.internal_port);
-
-        //electionManager.startCountDown();
-        // handle shutdown
-        Runtime.getRuntime().addShutdownHook(new Thread() {
-            @Override
-            public void run() {
-                // Use stderr here since the logger may have been reset by its JVM shutdown hook.
-                System.err.println("*** shutting down gRPC server since JVM is shutting down");
-                ProjectServer.this.stop();
-                System.err.println("*** server shut down");
-            }
-        });
-
-    }
-
-    private void stop() {
-        if (externalServer != null) {
-            externalServer.shutdown();
-        }
-        if (internalServer != null) {
-            internalServer.shutdown();
-        }
-    }
-
-    /**
-     * Await termination on the main thread since the grpc library uses daemon threads.
-     */
-    private void blockUntilShutdown() throws InterruptedException {
-        if (externalServer != null) {
-            externalServer.awaitTermination();
-        }
-        if (internalServer != null) {
-            internalServer.awaitTermination();
-        }
     }
 
     public void addNodeToNetwork(int nodeID, InternalClient toNode) {
@@ -217,6 +165,57 @@ public class ProjectServer {
         server.blockUntilShutdown();
     }
 
+    private void start() throws IOException {
+        logger.info("Start Server [" + server_id + "]");
+        // create externalServer
+        externalServer = ServerBuilder
+                .forPort(this.external_port)
+                .addService(new CommunicationServiceImpl(databaseManager, taskManager))
+                .build()
+                .start();
+        logger.info("External Server started, listening on " + this.external_port);
+        // create internalServer
+        internalServer = ServerBuilder
+                .forPort(this.internal_port)
+                .addService(new CommunicationServiceImpl(databaseManager, taskManager))
+                .build()
+                .start();
+        logger.info("Internal Server started, listening on " + this.internal_port);
+
+        // handle shutdown
+        Runtime.getRuntime().addShutdownHook(new Thread() {
+            @Override
+            public void run() {
+                // Use stderr here since the logger may have been reset by its JVM shutdown hook.
+                System.err.println("*** shutting down gRPC server since JVM is shutting down");
+                ProjectServer.this.stop();
+                System.err.println("*** server shut down");
+            }
+        });
+
+    }
+
+    private void stop() {
+        if (externalServer != null) {
+            externalServer.shutdown();
+        }
+        if (internalServer != null) {
+            internalServer.shutdown();
+        }
+    }
+
+    /**
+     * Await termination on the main thread since the grpc library uses daemon threads.
+     */
+    private void blockUntilShutdown() throws InterruptedException {
+        if (externalServer != null) {
+            externalServer.awaitTermination();
+        }
+        if (internalServer != null) {
+            internalServer.awaitTermination();
+        }
+    }
+
     // CommunicationService class implementation
     static class CommunicationServiceImpl extends CommunicationServiceGrpc.CommunicationServiceImplBase {
         private static final Logger logger = Logger.getLogger(CommunicationServiceImpl.class.getName());
@@ -267,6 +266,8 @@ public class ProjectServer {
             return new StreamObserver<Request>() {
                 @Override
                 public void onNext(Request request) {
+                    // For task sharding turn on the following
+//                    taskManager.putTask(request);
                     // Process the request and send a response or an error.
                     try {
                         // insert string or strings to database
@@ -296,6 +297,7 @@ public class ProjectServer {
 
                 @Override
                 public void onError(Throwable t) {
+
                     // End the response stream if the client  presents an error.
                     t.printStackTrace();
                     responseObserver.onCompleted();
@@ -303,6 +305,8 @@ public class ProjectServer {
 
                 @Override
                 public void onCompleted() {
+                    // For task sharding turn on the following
+//                    taskManager.putDone();
                     // need to commit the current batch to database before finish
                     databaseManager.commitBatch();
 
@@ -318,8 +322,47 @@ public class ProjectServer {
 
         @Override
         public void getHandler(Request request, StreamObserver<Response> responseObserver) {
+            // For task sharding turn on the following
             String from_utc = request.getGetRequest().getQueryParams().getFromUtc();
             String to_utc = request.getGetRequest().getQueryParams().getToUtc();
+
+            /** To turn on data sharding, uncomment the following code and turn of everything below until the end to catch **/
+            /**
+            LinkedList<String> result = taskManager.getTask(from_utc, to_utc);
+            StringBuffer fragment = new StringBuffer();
+            for (String line : result) {
+                fragment.append(line);
+                if (fragment.length() >= fragmentSize) {
+                    DatFragment datFragment = DatFragment
+                            .newBuilder()
+                            .setData(ByteString.copyFromUtf8(fragment.toString()))
+                            .build();
+
+                    Response response = Response
+                            .newBuilder()
+                            .setDatFragment(datFragment)
+                            .build();
+
+                    responseObserver.onNext(response);
+                    fragment = new StringBuffer();
+                }
+            }
+            // send the last fragment
+            if (fragment.length() != 0) {
+                DatFragment datFragment = DatFragment
+                        .newBuilder()
+                        .setData(ByteString.copyFromUtf8(fragment.toString()))
+                        .build();
+
+                Response response = Response
+                        .newBuilder()
+                        .setDatFragment(datFragment)
+                        .build();
+
+                responseObserver.onNext(response);
+            }
+             **/
+
 
             ResultSet resultSet = databaseManager.selectByTimeRanch(from_utc, to_utc);
 
