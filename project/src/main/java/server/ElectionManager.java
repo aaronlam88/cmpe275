@@ -1,11 +1,62 @@
 package server;
 
+import java.util.Timer;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
 public class ElectionManager {
+  //private static final Logger logger = Logger.getLogger(ElectionManager.class.getName());
     //TODO implement Election algo here
+
+    // Do i create a channel here and send message
+    // All electionManager has a set of nodes information?
+
     public NodeState nodeState;
+    private Timer timer;
+
+    //Candidate state
+    private int term;
+    private int voteCount;
 
     public ElectionManager() {
         this.nodeState = NodeState.getNodeState();
+        timer = new Timer();
+        term = 0;
+        startCountDown();
+    }
+
+    public void startCountDown() {
+      timer.schedule(new java.util.TimerTask() {
+            @Override
+            public void run() {
+                changeToCandidate();
+            }
+          },
+            nodeState.getTimeout());
+    }
+
+    public void receiveHeartBeat() {
+      nodeState.setTimeout();
+      startCountDown();
+    }
+
+    public void changeToCandidate() {
+      nodeState.getCurrentState().moveToNextState();
+      term++;
+      voteCount = 1;
+      //TODO: send request to other nodes in network
+
+      if (voteCount >= 2) {
+        changeToLeader();
+      } else {
+        //TODO:
+      }
+    }
+
+    public void changeToLeader() {
+      nodeState.getCurrentState().moveToNextState();
+      //TODO: send heartbeat and check response
+
     }
 }
 
@@ -23,7 +74,6 @@ abstract class State {
 
 class NodeState {
     private static NodeState nodeState = null;
-
     State leaderState;
     State followerState;
     State cadidateState;
@@ -31,7 +81,6 @@ class NodeState {
     State currentState;
     boolean voted;
     int timeout;
-    int time;
 
     private NodeState() {
     }
@@ -73,6 +122,14 @@ class NodeState {
     public State getCadidateState() {
         return cadidateState;
     }
+
+    public int getTimeout() {
+      return timeout;
+    }
+
+    public void setTimeout() {
+      timeout = (int) (Math.random() * 300) + 200;
+    }
 }
 
 class LeaderState extends State {
@@ -112,6 +169,8 @@ class LeaderState extends State {
 }
 
 class FollowerState extends State {
+  private static final Logger logger = Logger.getLogger(FollowerState.class.getName());
+
     NodeState nodeState;
 
     public FollowerState(NodeState nodeState) {
@@ -144,8 +203,11 @@ class FollowerState extends State {
 
     public void moveToNextState() {
         //TODO after timeout, no heartbeat from leader
+        logger.info("Follower change to Candidate");
         nodeState.setCurrentState(nodeState.getCadidateState());
+
     }
+
 }
 
 class CadidateState extends State {

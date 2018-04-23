@@ -7,6 +7,7 @@ import config.ServerConfig;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.Status;
+import io.grpc.election.Vote;
 import io.grpc.election.ElectionMsg;
 import io.grpc.election.ElectionReply;
 import io.grpc.election.ElectionServiceGrpc;
@@ -24,6 +25,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import java.net.InetAddress;
 /**
  * ProjectServer is similar to Node, ProcessingNode concept
  * A ProjectServer has:
@@ -46,7 +48,6 @@ public class ProjectServer {
 
     private static final int fragmentSize = 1024000; // 1,024,000 char ~= 1MB
 
-
     private int server_id; // server id is same as node id
     private int external_port; // port use for team2team communication
     private int internal_port; // port use for node2node communication
@@ -61,6 +62,7 @@ public class ProjectServer {
     private ElectionManager electionManager;
     private TaskManager taskManager;
 
+    //private Timer timer; // for timeout follower state
 
     private ProjectServer(int server_id, int external_port, int internal_port) {
         this.server_id = server_id;
@@ -88,6 +90,9 @@ public class ProjectServer {
         this.internal_port = 8081;
     }
 
+    public void addNodeToNetwork(int nodeID, InternalClient toNode) {
+      routingTable.put(nodeID, toNode);
+    }
     /**
      * Main launches the server from the command line.
      */
@@ -98,6 +103,7 @@ public class ProjectServer {
         int internal_port = 8081;
         String server_config_file_path = null;
         String db_config_file_path = null;
+        String ips_config_file_path = "../src/main/resources/ips.json"; //the path to all network nodes
 
         switch (args.length) {
             case 3:
@@ -136,6 +142,21 @@ public class ProjectServer {
         } else {
             // default
             server.databaseManager = new DatabaseManager("cmpe275", "cmpe275!", "jdbc:mysql://localhost:3306/cmpe275?autoReconnect=true&useSSL=false");
+        }
+
+        //test on one system; use ports for different servers
+        String to_ip = InetAddress.getLocalHost().getHostAddress();
+        logger.info(to_ip);
+        Gson gson = new Gson();
+        NodeJson[] nodesArray = gson.fromJson(new FileReader("./src/main/resources/ips.json"), NodeJson[].class);
+
+        for (NodeJson node : nodesArray) {
+          //logger.info("Before, " +node.nodeID +" has been added to routingTable");
+          if (node.to_port != internal_port) {
+            InternalClient nodeInNetwork = new InternalClient(to_ip, node.to_port);
+            server.addNodeToNetwork(node.nodeID, nodeInNetwork);
+            logger.info("After, " + node.nodeID +" has been added to routingTable");
+          }
         }
 
         server.electionManager = new ElectionManager();
@@ -418,12 +439,33 @@ public class ProjectServer {
         }
     }
 
+    // Handle when receive a request from other service.
     static class ElectionServiceImpl extends ElectionServiceGrpc.ElectionServiceImplBase {
+        private ElectionManager electionManager;
+        //private NodeStatus senderNodeStatus;
+
+        ElectionServiceImpl(ElectionManager electionManager) {
+          this.electionManager = electionManager;
+        }
+        //receive heartbeat message if the sender is leader then acknowledge its node timeout update; otherwise ignore
         @Override
         public void sendHeartbeat(ElectionMsg request, StreamObserver<ElectionReply> responseObserver) {
+          logger.info("get message from " + request.getFromSender());
+          electionManager.receiveHeartBeat();
+          // if (request.getType() == Type.Heartbeat) {
+          //   electionManager.resetTimer();
+          // }
+          // create a Response Builder, use this builder to build a Response
+          ElectionReply response =
+                  ElectionReply.newBuilder()
+                          .setVote(Vote.Success)
+                          .build();
 
+          responseObserver.onNext(response);
+          responseObserver.onCompleted();
         }
 
+        //node state should be candidate; and if itself's node is in the state of follower, send back vote success; otherwise, failure;
         @Override
         public void runElection(ElectionMsg request, StreamObserver<ElectionReply> responseObserver) {
 
