@@ -191,6 +191,58 @@ public class ProjectClient {
         logger.info("putHandler DONE");
     }
 
+    public void putHandler(String data, boolean test) {
+        logger.info("putHandler " + this.toIP + " ...");
+        StreamObserver<Response> responseObserver = new StreamObserver<Response>() {
+
+            @Override
+            public void onNext(Response value) {
+                logger.info(value.getDatFragment().getData().toStringUtf8());
+            }
+
+            @Override
+            public void onError(Throwable t) {
+                t.printStackTrace();
+                done.countDown();
+            }
+
+            @Override
+            public void onCompleted() {
+                logger.info("Completed");
+                done.countDown();
+            }
+        };
+
+        StreamObserver<Request> requestObserver = nonBlockingStub.putHandler(responseObserver);
+
+        try {
+            DatFragment datFragment = DatFragment
+                    .newBuilder()
+                    .setData(ByteString.copyFromUtf8(data))
+                    .build();
+
+            Request request = Request
+                    .newBuilder()
+                    .setPutRequest(
+                            PutRequest
+                                    .newBuilder()
+                                    .setDatFragment(datFragment)
+                                    .build()
+                    )
+                    .build();
+
+            requestObserver.onNext(request); // send data fragment to server
+
+            // send completed
+            requestObserver.onCompleted();
+            done.await();
+        } catch (Exception e) {
+            requestObserver.onError(e);
+            logger.log(Level.WARNING, "RPC failed: {0}", e.getMessage());
+        }
+        logger.info("putHandler DONE");
+    }
+
 
     /**
      * GetHandler

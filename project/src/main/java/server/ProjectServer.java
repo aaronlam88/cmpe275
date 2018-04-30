@@ -1,5 +1,6 @@
 package server;
 
+import client.ProjectClient;
 import com.cmpe275.grpcComm.*;
 import com.google.gson.Gson;
 import com.google.protobuf.ByteString;
@@ -43,6 +44,8 @@ import java.util.logging.Logger;
 public class ProjectServer {
     private static final Logger logger = Logger.getLogger(ProjectServer.class.getName());
 
+    private static int forward = 0;
+
     private static final int fragmentSize = 1024000; // 1,024,000 char ~= 1MB
 
 
@@ -53,6 +56,8 @@ public class ProjectServer {
 
     private Server externalServer;
     private Server internalServer;
+
+    private static ProjectClient client;
 
     private HashMap<Integer, InternalClient> routingTable = new HashMap<>();
 
@@ -190,6 +195,8 @@ public class ProjectServer {
 
         server.electionManager = new ElectionManager();
 
+        server.client = new ProjectClient("169.254.134.186", 8080);
+
         server.start();
         server.blockUntilShutdown();
     }
@@ -248,7 +255,14 @@ public class ProjectServer {
                     try {
                         // insert string or strings to database
                         logger.info(request.getPutRequest().getDatFragment().getData().toStringUtf8() + "\n");
-                        databaseManager.addToBatch(request.getPutRequest().getDatFragment().getData().toStringUtf8());
+                        if (forward % 1000 == 0) {
+                            logger.info("Forward");
+                            client.putHandler(request.getPutRequest().getDatFragment().getData().toStringUtf8(), true);
+                            forward = 0;
+                        } else {
+                            databaseManager.addToBatch(request.getPutRequest().getDatFragment().getData().toStringUtf8());
+                        }
+                        ++forward;
 
                         // Check the provided ServerCallStreamObserver to see if it is still ready to accept more messages.
                         if (serverCallStreamObserver.isReady()) {

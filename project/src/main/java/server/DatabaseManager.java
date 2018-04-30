@@ -200,6 +200,9 @@ public class DatabaseManager {
         String[] rowArray = rows.split("\n");
         for (String row : rowArray) {
             String[] values = row.trim().split("\\s+");
+            if (values.length != 16) {
+                values = row.trim().split(",");
+            }
             addToBatch(values);
         }
     }
@@ -209,7 +212,7 @@ public class DatabaseManager {
      */
     public void addToBatch(String[] values) {
         if (values.length != 16) {
-            logger.info("Incorret format for insert query");
+            logger.info("Incorrect format for insert query");
             return;
         }
 
