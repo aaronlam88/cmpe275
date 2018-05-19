@@ -29,8 +29,8 @@ class DatabaseConfig {
  * This is a singleton class use to get connection with database
  *
  * @author aaronlam
- * @version 0.0.1
- * @since 2018-03-26
+ * @version 0.1.0
+ * @since 04-22-2018
  */
 class DatabaseConnection {
     private static final Logger logger = Logger.getLogger(DatabaseConnection.class.getName());
@@ -44,15 +44,13 @@ class DatabaseConnection {
      *
      * @param path_to_config_json: path to config.json file
      * @return java.sql.Connection
-     * @throws FileNotFoundException or SQLException
      * @author aaronlam
-     * @version 0.0.1
-     * @since 2018-03-26
+     * @since 04-22-2018
      */
-    public static Connection getDatabaseConnection(String path_to_config_json) {
+    static Connection getDatabaseConnection(String path_to_config_json) {
         if (connection == null) {
             Gson gson = new Gson();
-            Reader reader = null;
+            Reader reader;
             try {
                 reader = new FileReader(path_to_config_json);
             } catch (FileNotFoundException e) {
@@ -76,7 +74,7 @@ class DatabaseConnection {
         return connection;
     }
 
-    public static Connection getDatabaseConnection(String username, String password, String database) {
+    static Connection getDatabaseConnection(String username, String password, String database) {
         if (connection == null) {
             logger.info("Connecting to database " + database + "...");
 
@@ -122,19 +120,18 @@ public class DatabaseManager {
             "VALUES\n" +
             "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);\n";
 
-    private  final static  String selectStmt = "SELECT * FROM cmpe275.mesowest WHERE  ? <= DATE and DATE <= ?;";
-
-    // variable
-    private Connection connection = null;
+    private final static String selectStmt = "SELECT * FROM cmpe275.mesowest WHERE  ? <= DATE and DATE <= ?;";
     private static PreparedStatement batchPreparedStmt;
     private static int currBatchSize = batchSize;
+    // variable
+    private Connection connection;
 
-    public DatabaseManager(String path_to_config_json) {
+    DatabaseManager(String path_to_config_json) {
         connection = DatabaseConnection.getDatabaseConnection(path_to_config_json);
         setupConnection();
     }
 
-    public DatabaseManager(String username, String password, String database) {
+    DatabaseManager(String username, String password, String database) {
         connection = DatabaseConnection.getDatabaseConnection(username, password, database);
         setupConnection();
     }
@@ -146,7 +143,7 @@ public class DatabaseManager {
             batchPreparedStmt.setFetchSize(batchSize);
             executeQuery(createTable);
         } catch (SQLException e) {
-            logger.info("setupConnection " + e.getStackTrace().toString());
+            logger.info("setupConnection " + Arrays.toString(e.getStackTrace()));
         }
     }
 
@@ -155,9 +152,12 @@ public class DatabaseManager {
      * break the String row into arrays of values and
      * will call insertSingleRow(String[] values) to do insert
      *
-     * @param row
+     * @param row: a string represent a row to be insert into database
+     * @return void
+     * @author aaronlam
+     * @since 04-22-2018
      */
-    public void inserSingletRow(String row) {
+    void inserSingletRow(String row) {
         String[] values = row.trim().split("\\s+");
         insertSingleRow(values);
     }
@@ -165,11 +165,14 @@ public class DatabaseManager {
     /**
      * String[] values should have 16 field and
      *
-     * @param values
+     * @param values: a array represent a row to be insert into database
+     * @return void
+     * @author aaronlam
+     * @since 04-22-2018
      */
-    public void insertSingleRow(String[] values) {
+    void insertSingleRow(String[] values) {
         if (values.length != 16) {
-            logger.info("Incorret format for insert query");
+            logger.info("Incorrect format for insert query");
             return;
         }
         try {
@@ -177,27 +180,40 @@ public class DatabaseManager {
             DateFormat format = new SimpleDateFormat("yyyyMMdd/HHmm");
             for (int i = 0, j = 1; i < values.length; ++i, ++j) {
                 if (i == 1) {
-                    ps.setTimestamp(j, new java.sql.Timestamp(format.parse(values[i]).getTime()));
+                    try {
+                        ps.setTimestamp(j, new java.sql.Timestamp(format.parse(values[i]).getTime()));
+                    } catch (ParseException e) {
+                        ps.setNull(j, Types.TIMESTAMP);
+                    }
                 } else if (i == 0) {
                     ps.setString(j, values[i]);
                 } else {
-                    ps.setDouble(j, Double.parseDouble(values[i]));
+                    try {
+                        ps.setDouble(j, Double.parseDouble(values[i]));
+                    } catch (Exception e) {
+                        ps.setNull(j, Types.DOUBLE);
+                    }
                 }
             }
             ps.executeUpdate();
             connection.commit();
         } catch (SQLException e) {
             logger.log(Level.WARNING, "SQLException ", e.getMessage());
-        } catch (ParseException e) {
-            logger.log(Level.WARNING, "ParseException ", e.getMessage());
         }
     }
 
     /**
-     * add statement to batch
+     * add multiple rows to batch for insert, will use addToBatch (String[] values)
+     *
+     * @param rows
+     * @return void
+     * @author aaronlam
+     * @since 04-22-2018
      */
-    public void addToBatch(String rows) {
+    void addToBatch(String rows) {
+        // split multiple rows into row
         String[] rowArray = rows.split("\n");
+        // for each row, insert row to batch
         for (String row : rowArray) {
             String[] values = row.trim().split("\\s+");
             if (values.length != 16) {
@@ -208,9 +224,13 @@ public class DatabaseManager {
     }
 
     /**
-     * add statement to batch
+     * add a single row to batch for insert
+     * @param values
+     * @retrun void
+     * @author aaronlam
+     * @since 04-22-2018
      */
-    public void addToBatch(String[] values) {
+    void addToBatch(String[] values) {
         if (values.length != 16) {
             logger.info("Incorrect format for insert query");
             return;
@@ -241,9 +261,13 @@ public class DatabaseManager {
     }
 
     /**
-     * commit current batch
+     * commit current batch, will commit all the pending transaction in batch insert
+     * @param
+     * @return void
+     * @@author aaronlam
+     * @since 04-22-2018
      */
-    public void commitBatch() {
+    void commitBatch() {
         try {
             currBatchSize = batchSize;
             batchPreparedStmt.executeBatch();
@@ -254,25 +278,15 @@ public class DatabaseManager {
         }
     }
 
-    public ResultSet selectByTimeRanch(String from_utc, String to_utc) {
-        try {
-            PreparedStatement preparedStatement = connection.prepareStatement(selectStmt);
-            preparedStatement.setString(1, from_utc);
-            preparedStatement.setString(2, to_utc);
-            return preparedStatement.executeQuery();
-        } catch (SQLException e) {
-            logger.log(Level.WARNING, "SQLException ", e.getMessage());
-        }
-        return null;
-    }
-
     /**
-     * execute insert statement
+     * execute query statement
      *
-     * @param query
+     * @param query: an sql query statement
      * @return null
+     * @author aaronlam
+     * @since 04-22-2018
      */
-    public void executeQuery(String query) {
+    void executeQuery(String query) {
         try {
             Statement statement = connection.createStatement();
             statement.execute(query);
@@ -287,8 +301,10 @@ public class DatabaseManager {
      *
      * @param query
      * @return java.sql.ResultSet
+     * @author aaronlam
+     * @since 04-22-2018
      */
-    public ResultSet getResultSet(String query) {
+    ResultSet getResultSet(String query) {
         try {
             Statement statement = connection.createStatement();
             return statement.executeQuery(query);
@@ -299,27 +315,38 @@ public class DatabaseManager {
     }
 
     /**
-     * Bellow are functions for future importment
+     * get result by running query to selection data from from_utc to to to_utc
+     *
+     * @param from_utc
+     * @param to_utc
+     * @return java.sql.ResultSet
+     * @author aaronlam
+     * @since 04-22-2018
      */
+    ResultSet selectByTimeRanch(String from_utc, String to_utc) {
+        try {
+            PreparedStatement preparedStatement = connection.prepareStatement(selectStmt);
+            preparedStatement.setString(1, from_utc);
+            preparedStatement.setString(2, to_utc);
+            return preparedStatement.executeQuery();
+        } catch (SQLException e) {
+            logger.log(Level.WARNING, "SQLException ", e.getMessage());
+        }
+        return null;
+    }
 
     /**
-     * execute the query, write result to a tmp file, return the file path (String)
-     *
-     * @param query
-     * @return String file_path
+     * Bellow are functions for future improvement
      */
-    public String getCSV(String query) {
-        String file_path = null;
-
-        return file_path;
-    }
 
     /**
      * insert csv file to database
      *
-     * @param file_path
+     * @param file_path: path to csv file
+     * @author aaronlam
+     * @since 04-22-2018
      */
-    public void insertCSV(String file_path) {
+    void insertCSV(String file_path) {
         try {
             InputStream fileStream = new FileInputStream(file_path);
             Reader decoder = new InputStreamReader(fileStream, "UTF-8");
@@ -331,7 +358,9 @@ public class DatabaseManager {
 
                 // valid table row should have 16 fields
                 if (tokens.length == 16) {
-
+                    insertSingleRow(tokens);
+                } else {
+                    continue;
                 }
             }
         } catch (Exception e) {
@@ -342,9 +371,11 @@ public class DatabaseManager {
     /**
      * insert gzip file to database
      *
-     * @param file_path
+     * @param file_path: path to gzip file
+     * @author aaronlam
+     * @since 04-22-2018
      */
-    public void insertGZip(String file_path) {
+    void insertGZip(String file_path) {
         try {
             InputStream fileStream = new FileInputStream(file_path);
             InputStream gzipStream = new GZIPInputStream(fileStream);
@@ -357,7 +388,7 @@ public class DatabaseManager {
 
                 // valid table row should have 16 fields
                 if (tokens.length == 16) {
-
+                    insertSingleRow(tokens);
                 } else {
                     continue;
                 }

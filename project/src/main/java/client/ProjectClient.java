@@ -101,6 +101,7 @@ public class ProjectClient {
             @Override
             public void onNext(Response value) {
                 logger.info(value.getDatFragment().getData().toStringUtf8());
+                //logger.info(value.getMessage);
             }
 
             @Override

@@ -1,35 +1,30 @@
 package server;
 
-import com.google.protobuf.ByteString;
-import com.google.type.Date;
+import com.cmpe275.grpcComm.*;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.StatusRuntimeException;
-//import io.grpc.comm.*;
-import com.cmpe275.grpcComm.*;
-
 import io.grpc.stub.ClientCallStreamObserver;
 import io.grpc.stub.ClientResponseObserver;
 import io.grpc.stub.StreamObserver;
 
-import javax.xml.crypto.Data;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
 import java.net.InetAddress;
-import java.time.Instant;
-import java.util.LinkedList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public class InternalClient {
     private static final Logger logger = Logger.getLogger(InternalClient.class.getName());
 
+    private static final int fragmentSize = 1024000; // 1,024,000 char ~= 1MB
+    final CountDownLatch done = new CountDownLatch(1);
     private final ManagedChannel channel;
     private final CommunicationServiceGrpc.CommunicationServiceBlockingStub blockingStub;
     private final CommunicationServiceGrpc.CommunicationServiceStub nonBlockingStub;
-
-    final CountDownLatch done = new CountDownLatch(1);
-
     private String myIP;
     private String toIP;
 
@@ -55,7 +50,7 @@ public class InternalClient {
     /**
      * Construct client for accessing server using the existing channel.
      */
-    InternalClient(ManagedChannel channel) {
+    public InternalClient(ManagedChannel channel) {
         this.channel = channel;
         this.blockingStub = CommunicationServiceGrpc.newBlockingStub(this.channel);
         this.nonBlockingStub = CommunicationServiceGrpc.newStub(channel);
@@ -82,18 +77,18 @@ public class InternalClient {
 
         Response response;
         try {
+            long time = System.currentTimeMillis();
             response = blockingStub.ping(request);
+            logger.info("Respont: " + (System.currentTimeMillis() - time) + " ms");
         } catch (StatusRuntimeException e) {
             logger.log(Level.WARNING, "RPC failed: {0}", e.getStatus());
-            return;
         }
-        logger.info(response.getCode().toString());
     }
 
     /**
      * PutHandler
      */
-    public void putHandler() {
+    public void putHandler(Request request) {
         logger.info("putHandler " + this.toIP + " ...");
         StreamObserver<Response> responseObserver = new StreamObserver<Response>() {
 
@@ -105,97 +100,45 @@ public class InternalClient {
             @Override
             public void onError(Throwable t) {
                 t.printStackTrace();
+                done.countDown();
             }
 
             @Override
             public void onCompleted() {
-                logger.info("All Done for put handler");
+                logger.info("Completed");
+                done.countDown();
             }
         };
 
         StreamObserver<Request> requestObserver = nonBlockingStub.putHandler(responseObserver);
 
         try {
-            // create uuid for a file, fragment that file, count number of fragments
-            String uuid = "uuid";
-            int numberOfFragment = 3;
-            int mediaType = 1;
-
-            MetaData metaData = MetaData
-                    .newBuilder()
-                    .setUuid(uuid)
-                    .setNumOfFragment(numberOfFragment)
-                    .setMediaType(mediaType)
-                    .build();
-
-            // example of fragment
-            LinkedList<String> list = new LinkedList<>();
-            for (int i = 0; i < numberOfFragment; ++i) {
-                list.add("fragment number " + i);
-            }
-
-            PutRequest putRequest = PutRequest
-                    .newBuilder()
-                    .setMetaData(metaData)
-                    .build();
-
-            Request request = Request
-                    .newBuilder()
-                    .setFromSender(this.myIP)
-                    .setToReceiver(this.toIP)
-                    .setPutRequest(putRequest)
-                    .build();
-
-            // send first meta data
-            logger.info("sending meta data ...");
-            requestObserver.onNext(request);
-
-            // send all fragments
-            for (String str : list) {
-                DatFragment datFragment = DatFragment
-                        .newBuilder()
-                        .setTimestampUtc(Instant.now().toString())
-                        .setData(ByteString.copyFromUtf8(str))
-                        .build();
-
-                request = Request
-                        .newBuilder()
-                        .setPutRequest(
-                                PutRequest
-                                        .newBuilder()
-                                        .setMetaData(metaData)
-                                        .setDatFragment(datFragment)
-                                        .build()
-                        )
-                        .build();
-
-                // send fragment
-                logger.info("sending data " + request.getPutRequest().getDatFragment().toString());
-                requestObserver.onNext(request);
-            }
-
+            requestObserver.onNext(request); // send data fragment to server
             // send completed
             requestObserver.onCompleted();
-        } catch (StatusRuntimeException e) {
-            logger.log(Level.WARNING, "RPC failed: {0}", e.getStatus());
-            return;
-        } catch (RuntimeException e) {
+            done.await();
+        } catch (Exception e) {
             requestObserver.onError(e);
             logger.log(Level.WARNING, "RPC failed: {0}", e.getMessage());
-            return;
         }
-        logger.info("getHandler DONE");
+        logger.info("putHandler DONE");
     }
-
 
     /**
      * GetHandler
      */
-    public void getHandler() {
+    public String getHandler(String from_utc, String to_utc) {
+        StringBuffer stringBuffer = new StringBuffer();
         logger.info("getHandler " + this.toIP + " ...");
-        // TODO: Build Get Request
+        // Build Get Request
         GetRequest getRequest = GetRequest
                 .newBuilder()
+                .setQueryParams(
+                        QueryParams
+                                .newBuilder()
+                                .setFromUtc(from_utc)
+                                .setToUtc(to_utc).build()
+                )
                 .build();
 
         // Build Request
@@ -208,12 +151,18 @@ public class InternalClient {
 
         try {
             nonBlockingStub.getHandler(request, new ClientResponseObserver<Request, Response>() {
+                final AtomicBoolean wasReady = new AtomicBoolean(false);
                 ClientCallStreamObserver<Request> requestStream;
 
                 @Override
                 public void onNext(Response value) {
                     logger.info(value.getDatFragment().getData().toStringUtf8());
-                    requestStream.request(1);
+                    stringBuffer.append(value.getDatFragment().getData().toStringUtf8());
+                    if (requestStream.isReady()) {
+                        requestStream.request(1);
+                    } else {
+                        wasReady.set(false);
+                    }
                 }
 
                 @Override
@@ -237,12 +186,14 @@ public class InternalClient {
                         @Override
                         public void run() {
                             // Start generating values from where we left off on a non-gRPC thread.
-                            // TODO: build request
-//                            Request request = Request.newBuilder().build();
                             // Send request
-                            while (requestStream.isReady()) {
-                                requestStream.onNext(request);
-                                requestStream.onCompleted();
+//                            while (requestStream.isReady()) {
+//                                requestStream.onNext(request);
+//                                requestStream.onCompleted();
+//                            }
+                            if (requestStream.isReady() && wasReady.compareAndSet(false, true)) {
+                                logger.info("getHandler READY");
+                                requestStream.request(1);
                             }
                         }
                     });
@@ -251,38 +202,9 @@ public class InternalClient {
             done.await();
         } catch (StatusRuntimeException e) {
             logger.log(Level.WARNING, "RPC failed: {0}", e.getStatus());
-            return;
         } catch (InterruptedException e) {
             logger.log(Level.WARNING, "RPC failed: {0}", e.getMessage());
-            return;
         }
-        logger.info("getHandler DONE");
-    }
-
-    public static void main(String[] args) throws Exception {
-        String host = "localhost"; // default host;
-        int port = 8080; // default port
-
-        // if host or port are supplied, use them
-        switch (args.length) {
-            case 2:
-                port = Integer.parseInt(args[1]);
-                // fall over to case 1
-                // no break intentionally
-            case 1:
-                host = args[0];
-                break;
-        }
-
-        InternalClient client = new InternalClient(host, port);
-        try {
-            /* Access a service running on the local machine on port */
-            client.ping();
-            client.getHandler();
-            client.putHandler();
-        } finally {
-            client.shutdown();
-        }
+        return stringBuffer.toString();
     }
 }
-
