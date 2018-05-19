@@ -386,16 +386,4 @@ public class ProjectServer {
             logger.info("getHandler DONE");
         }
     }
-
-    static class ElectionServiceImpl extends ElectionServiceGrpc.ElectionServiceImplBase {
-        @Override
-        public void sendHeartbeat(ElectionMsg request, StreamObserver<ElectionReply> responseObserver) {
-
-        }
-
-        @Override
-        public void runElection(ElectionMsg request, StreamObserver<ElectionReply> responseObserver) {
-
-        }
-    }
 }
